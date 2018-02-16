@@ -1,0 +1,289 @@
+---
+title: "SGG - Who are the main player?"
+author: "André Soares"
+date: "8 January 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r initial loadings, include=FALSE}
+library(dada2); packageVersion("dada2")
+library(ggplot2); packageVersion("ggplot2")
+library(phyloseq); packageVersion("phyloseq")
+library(data.table); packageVersion("data.table")
+library(DESeq2); packageVersion("DESeq2")
+library(dplyr)
+library(plyr)
+library(magrittr)
+library(RColorBrewer)
+library(phangorn)
+library(DECIPHER)
+library("structSSI")
+library(ips)
+library(msa)
+library(picante)
+library(igraph)
+library(cowplot)
+library(plotly)
+library(lemon)
+```
+
+```{r load SV data, echo=FALSE}
+SGG_SVt = readRDS("/media/andre/B2F8C9A0F8C962E9/SGG_16S_analysis/SGG_16S_data_trimmed_DADA2_table/seqtab_final.rds")
+SGG_Tax = readRDS("/media/andre/B2F8C9A0F8C962E9/SGG_16S_analysis/SGG_16S_data_trimmed_DADA2_table/tax_final.rds")
+sgg_metadata<-read.csv("/media/andre/B2F8C9A0F8C962E9/SGG_16S_analysis/SGG_16S_metadata/SGG_metadata.csv", header=TRUE)
+order<-rownames(SGG_SVt)
+sgg_metadata_ord<-sgg_metadata[match(order, sgg_metadata$Sample_Code),]
+rownames(sgg_metadata_ord) <- sgg_metadata_ord$Sample_Code
+ps <- phyloseq(otu_table(SGG_SVt, taxa_are_rows=FALSE),
+               sample_data(sgg_metadata_ord), 
+               tax_table(SGG_Tax))
+ps.a = subset_samples(ps, Site.name != "Taffs Well PUMPED")
+ps.b = subset_samples(ps.a, Sample_type != "Control")
+ps.b <- prune_taxa(taxa_sums(ps.b) > 0, ps.b)
+#order months
+sample_data(ps.b)$Month = factor(sample_data(ps.b)$Month, 
+                                 levels = c("April","August","December"))
+#to relative abundances
+ps.b = subset_taxa(ps.b, Kingdom %in% c("Archaea", "Bacteria"))
+ps.b.r <-  transform_sample_counts(ps.b, function(x) {x/sum(x)} ) 
+```
+
+##1 - General view of taxonomic profiles across the dataset
+
+```{r general proteobacterial taxonomy}
+# agglomerate taxa
+ps.b.r.glom <- tax_glom(ps.b.r, taxrank = 'Phylum', NArm = FALSE)
+# create dataframe from phyloseq object
+ps.b.r.glom.psdf <- data.table(psmelt(ps.b.r.glom))
+# convert Phylum to a character vector from a factor because R
+ps.b.r.glom.psdf$Phylum <- as.character(ps.b.r.glom.psdf$Phylum)
+# group dataframe by Phylum, calculate median rel. abundance
+ps.b.r.glom.psdf[, median := median(Abundance, na.rm = TRUE), 
+                 by = "Phylum"]
+# Change name to remainder of Phylum less than 1%
+ps.b.r.glom.psdf[(median <= 0.01), Phylum := "Other"]
+#Removing Proteobacteria from previous table
+ps.b.r.glom.psdf.noProteo<-ps.b.r.glom.psdf[!grepl("Proteobacteria", ps.b.r.glom.psdf$Phylum),]
+#New table, with Proteobacterial classes only
+ps.b.r.ProtCl = subset_taxa(ps.b.r, Phylum == "Proteobacteria")
+ps.b.r.ProtCl.glom <- tax_glom(ps.b.r.ProtCl, taxrank = 'Class', NArm = FALSE)
+# create dataframe from phyloseq object
+ps.b.r.ProtCl.glom.psdf <- data.table(psmelt(ps.b.r.ProtCl.glom))
+# convert Class to a character vector from a factor because R
+ps.b.r.ProtCl.glom.psdf$Class <- as.character(ps.b.r.ProtCl.glom.psdf$Class)
+# group dataframe by Phylum, calculate median rel. abundance
+ps.b.r.ProtCl.glom.psdf[, median := median(Abundance, na.rm = TRUE), 
+                        by = "Class"]
+# Change name to remainder of Phylum less than 1%
+ps.b.r.ProtCl.glom.psdf[(median <= 0.01), Class := "Other Proteobacteria"]
+ps.b.r.ProtCl.glom.psdf.noP <- subset(ps.b.r.ProtCl.glom.psdf, select = -Phylum)
+#same name= allows merging
+names(ps.b.r.glom.psdf.noProteo)[names(ps.b.r.glom.psdf.noProteo) == 'Phylum'] <- 'Taxa'
+names(ps.b.r.ProtCl.glom.psdf.noP)[names(ps.b.r.ProtCl.glom.psdf.noP) == 'Class'] <- 'Taxa'
+#join the two
+ps.b.r.ProteoCl.AllPhy <- rbind(ps.b.r.glom.psdf.noProteo, ps.b.r.ProtCl.glom.psdf.noP)
+ps.b.r.ProteoCl.AllPhy.plot<-ggplot(ps.b.r.ProteoCl.AllPhy[Abundance > 0], 
+                                    aes(x = Site.name, y = Abundance/3, fill = Taxa)) + 
+  facet_grid(Month~.) +
+  geom_bar(stat = "identity") +
+  # Remove x axis title
+  theme(axis.title.x = element_blank(),
+        axis.text.x = element_text(angle = 45, hjust = 1)) + 
+  guides(fill = guide_legend(keywidth = 1, keyheight = 1)) +
+  # coord_cartesian(ylim = c(0, 1)) +
+  ylab("Relative Abundance\n")
+#totals vary because the bars = medians
+```
+```{r , fig.height=14, fig.width=20}
+ps.b.r.ProteoCl.AllPhy.plot
+```
+
+Clearly, the dataset is mostly populated by Beta- and Epsilonproteobacteria, which seem to correspond to iron- and sulphur-rich sites, respectively.
+
+Is this dominance explain by particular genera? Yep, seems like so. Also, some temporal trends seem to pop up. We'll take a look at that later.
+
+```{r genera plot}
+ps.b.r.HelicobGall = subset_taxa(ps.b.r, Genus=="Sulfuricurvum" | Genus=="Sulfurimonas" | Genus=="Sulfurovum" | Genus=="Gallionella" | Genus=="Sideroxydans" | Genus=="Ferriphaselus")
+ps.b.r.HelicobGall.glom <- tax_glom(ps.b.r.HelicobGall, taxrank = 'Genus', NArm = FALSE)
+ps.b.r.HelicobGall.glom.psdf <- data.table(psmelt(ps.b.r.HelicobGall.glom))
+ps.b.r.HelicobGall.glom.psdf <- data.frame(lapply(ps.b.r.HelicobGall.glom.psdf, function(x) {gsub("Crumlin Navigation", "Crum. Nav.", x)}))
+ps.b.r.HelicobGall.glom.psdf$Genus <- as.character(ps.b.r.HelicobGall.glom.psdf$Genus)
+ps.b.r.HelicobGall.glom.psdf$Abundance <- as.numeric(as.character(ps.b.r.HelicobGall.glom.psdf$Abundance))
+
+ps.b.r.HelicobGall.glom.psdf.plot<-ggplot(ps.b.r.HelicobGall.glom.psdf,
+                                          aes(x=Genus,y=Abundance,fill=Genus)) + 
+  geom_point(aes(color=Genus, fill=Genus,
+                 size=Abundance)) +
+  geom_smooth(method="loess") +
+  facet_grid(Site.name~Month)+
+  theme(axis.title.x = element_blank(),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        strip.text.y = element_text(angle = 0)) +
+  coord_fixed(ratio = 2)
+```
+```{r , fig.height=20, fig.width=14}
+ps.b.r.HelicobGall.glom.psdf.plot
+```
+
+It seems though from this and the latter graph that Lindsay has a much more diverse profile i.e. more than 40% of the profile is made up of 'Other' phyla. Let's take a closer look at that.
+
+```{r lindsay}
+ps.b.r.LindsayCHen = subset_samples(ps.b.r, Site.name=="Lindsay")
+ps.b.r.glom.phy <- tax_glom(ps.b.r.LindsayCHen, taxrank = 'Phylum', NArm = FALSE )
+ps.b.r.glom.phy.psdf <- data.table(psmelt(ps.b.r.glom.phy))
+ps.b.r.glom.phy.psdf.f <- ps.b.r.glom.phy.psdf[ , c("Abundance","Phylum")]
+ps.b.r.glom.phy.psdf.f.s<-ps.b.r.glom.phy.psdf.f[, .(count=.N, var=mean(Abundance)), by = Phylum]
+
+ps.b.r.glom.phy.psdf.f.s <- transform(ps.b.r.glom.phy.psdf.f.s, Phylum=reorder(Phylum, -var)) 
+ps.b.r.glom.phy.psdf.f.s.plot=ggplot(ps.b.r.glom.phy.psdf.f.s, aes(x=Phylum, y=var, color=Phylum)) +
+  geom_point() +
+  geom_hline(yintercept = 0.01,
+             color="gray",
+             linetype="dashed") +
+  ylab("Relative abundance") +
+  theme(axis.text.x = element_text(angle=40, hjust = 1, vjust = 1),
+        axis.title.x = element_blank(),
+        legend.position = "none")
+```
+```{r ,fig.width=14}
+ps.b.r.glom.phy.psdf.f.s.plot
+```
+
+This site is clearly populated by a microbial community where a number of phyla co-exist in relatively low (between 25 and 5%) proportions.
+
+So, how does this translate to beta-diversity?
+
+##2 - Community structure
+
+```{r pcoa}
+ps.b.r.pcoa  <- ordinate(ps.b.r, "PCoA", distance="jsd", 
+                         k=2, trymax=1e3, weighted=TRUE)
+evals<-ps.b.r.pcoa$values$Eigenvalues
+#Axis 1 and 2
+pcoa.a12<-sum(evals[1:2])/sum(evals)
+pcoa.a12.r<-round(pcoa.a12, digits=4)*100
+#Axis 1 and 3
+pcoa.a13<-sum(evals[c(1,3)])/sum(evals)
+pcoa.a13.r<-round(pcoa.a13, digits=4)*100
+ps.b.r.pcoa.plot.a1 <- plot_ordination(ps.b.r, ps.b.r.pcoa, axes = c(1,2),
+                                       color="Site.name", shape="Month") +
+  geom_polygon(aes(fill=Site.name), alpha=0.5) +
+  geom_point(alpha=0.5, size=4)+
+  scale_alpha(guide = 'none') +
+  theme(legend.position = "none") +
+  annotate("text", y= 0.3, x =0.25,label=paste("Axes 1 and 2:\n",pcoa.a12.r,"% variation")
+           ,hjust=0.5, size=5)
+
+ps.b.r.pcoa.plot.a2 <- plot_ordination(ps.b.r, ps.b.r.pcoa, axes = c(1,3),
+                                       color="Site.name", shape="Month")+
+  geom_polygon(aes(fill=Site.name), alpha=0.5) +
+  geom_point(alpha=0.5, size=4) +
+  scale_alpha(guide = 'none')+
+  annotate("text", y= 0.2, x =0.25,label=paste("Axes 1 and 3:\n",pcoa.a13.r,"% variation")
+           ,hjust=0.5, size=5)
+
+ps.b.r.pcoa.plot<-plot_grid(ps.b.r.pcoa.plot.a1, ps.b.r.pcoa.plot.a2, 
+                            labels=c("A","B"))
+ps.b.r.pcoa.plot
+```
+```{r , fig.height=18, fig.width=20}
+ps.b.r.pcoa.plot
+```
+
+Ok then, a clear separation between iron- and sulphur-rich sites.
+
+Not enough resolution to infer year-long patterns, so let's take a closer look at how beta-diversity varies across time.
+
+##3 - SGG across time
+
+```{r pcoa axis1 month}
+ps.b.r.pcoa.v = data.table(ps.b.r.pcoa$vectors, keep.rownames = TRUE)
+sdt = data.table(as(sample_data(ps.b.r), "data.frame"), keep.rownames = TRUE)
+
+setnames(ps.b.r.pcoa.v, "rn", "Sample.ID")
+df <- subset(sdt, select = -c(Sample.ID) )
+setnames(df, "rn", "Sample.ID")
+setkey(ps.b.r.pcoa.v, Sample.ID)
+setkey(df, Sample.ID)
+ps.b.r.pcoa.v <- ps.b.r.pcoa.v[df]
+# Axis 1
+ps.b.r.pcoa.v.plot=ggplot(ps.b.r.pcoa.v, aes(Month, Axis.1, color = Site.name)) +
+  geom_point(size = 3) +
+  geom_point(size = 5, alpha=0.4) + 
+  facet_wrap(~Site.name) +
+  theme(axis.text.x = element_text(angle = 25, vjust=1, hjust=1)) +
+  ylab("JSD PCoA Axis 1")
+```
+```{r , fig.height=12, fig.width=14}
+ps.b.r.pcoa.v.plot
+```
+
+It seems that except for month-specific outliers, seasonality doesn't have much effect on the beta-diversity.
+
+Is alpha-diversity impacted by seasonality?
+
+```{r alpha div}
+ps.b.rich=plot_richness(ps.b, x="Month", measures="Shannon",
+                        color="Site.name") + 
+  geom_point(size = 5, alpha=0.4) +
+  facet_wrap(~Site.name) +
+  theme(legend.position = "none",
+        axis.text.x = element_text(angle = 25, vjust=1, hjust=1),
+        axis.title.x = element_blank()) +
+  ylab("Shannon Diversity")
+```
+```{r , fig.height=12, fig.width=14}
+ps.b.rich
+```
+
+It seems like so. Specifically, Blaenavon and Celynen N seem to decrease along the year. On the other side, Cefn Hengoed, Glyncastle, Morlais seem to be positively correlated with the passing of the year.
+
+```{r investigate neg pos cors month}
+ps.b.r.posnegs = subset_samples(ps.b.r, Site.name=="Blaenavon" | Site.name=="Celynen North" | Site.name=="Cefn Hengoed" | Site.name=="Glyncastle" | Site.name=="Morlais")
+ps.b.r.posnegs.class = subset_taxa(ps.b.r.posnegs, Class=="Betaproteobacteria" | Class=="Deltaproteobacteria" | Class=="Gammaproteobacteria" | Class=="Epsilonproteobacteria" | Class=="Elusimicrobia")
+ps.b.r.posnegs.glom <- tax_glom(ps.b.r.posnegs.class, taxrank = 'Order', NArm = FALSE)
+ps.b.r.posnegs.glom.psdf <- data.table(psmelt(ps.b.r.posnegs.glom))
+ps.b.r.posnegs.glom.psdf$Order <- as.character(ps.b.r.posnegs.glom.psdf$Order)
+ps.b.r.posnegs.glom.psdf$Abundance <- as.numeric(ps.b.r.posnegs.glom.psdf$Abundance)
+ps.b.r.posnegs.glom.psdf.plot<-ggplot(ps.b.r.posnegs.glom.psdf[Abundance > 0.05],
+                                          aes(x=Order,y=Abundance,
+                                              fill=Order)) + 
+  geom_point(aes(color=Order, fill=Order,
+                 size=Abundance)) + 
+  facet_rep_grid(Site.name~Month)+
+  theme(axis.title.x = element_blank(),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank()) +
+  coord_fixed(ratio = 6)
+```
+```{r , fig.height=12, fig.width=14}
+ps.b.r.posnegs.glom.psdf.plot
+```
+
+Ok then, some clear trends showing up, let's try and identify if this is a large-scale effort or the work of specific SVs.
+
+```{r investigate neg pos cors month deeper}
+ps.b.r.posnegs.genus.glom <- tax_glom(ps.b.r.posnegs.class, taxrank = 'Genus', NArm = FALSE)
+ps.b.r.posnegs.genus.glom.psdf <- data.table(psmelt(ps.b.r.posnegs.genus.glom))
+ps.b.r.posnegs.genus.glom.psdf$Genus <- as.character(ps.b.r.posnegs.genus.glom.psdf$Genus)
+ps.b.r.posnegs.genus.glom.psdf$Abundance <- as.numeric(ps.b.r.posnegs.genus.glom.psdf$Abundance)
+ps.b.r.posnegs.genus.glom.psdf.plot<-ggplot(ps.b.r.posnegs.genus.glom.psdf[Abundance > 0.01],
+                                          aes(x=Genus,y=Abundance,
+                                              fill=Genus)) + 
+  geom_point(aes(color=Genus, fill=Genus,
+                 size=Abundance)) +
+  facet_rep_grid(Site.name~Month) +
+  theme(axis.title.x = element_blank(),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank()) +
+  guides(col = guide_legend(nrow = 22))
+```
+```{r , fig.height=12, fig.width=14}
+ps.b.r.posnegs.genus.glom.psdf.plot
+```
+
+Interesting stuff, seems Rhodoferax was ignored as a significant contributor for Betaproteobacterial trends across the dataset. Revisit that.
