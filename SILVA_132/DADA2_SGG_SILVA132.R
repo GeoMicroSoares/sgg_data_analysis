@@ -49,6 +49,6 @@ ps_132.b = subset_taxa(ps_132.b, Kingdom %in% c("Archaea", "Bacteria"))
 ps_132.b.r <-  transform_sample_counts(ps_132.b, function(x) {x/sum(x)} ) 
 
 #Number of SVs per phyl.132um
-sv.phyl.132<-as.data.frame(table(tax_table(ps_132.b.r)[, "phyl.132um"], exclude = NULL))
+sv.phyl.132<-as.data.frame(table(tax_table(ps_132.b.r)[, "Phylum"], exclude = NULL))
 sv.phyl.132.ord <- sv.phyl.132[order(-sv.phyl.132$Freq),] 
 sv.phyl.132.ord
