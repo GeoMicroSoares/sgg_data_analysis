@@ -145,3 +145,39 @@ ps.control.glom.psdf.plot
 ```
 
 Yes, the SVs seen on controls do seem to play important roles in the dataset. However, their presence in the controls is probably due to either barcode bleeing or sampling mishandling at some point of the molecular analysis. There is no evidence pointing towards samples having been contaminated.
+
+##3 - Ratios of classified vs. unclassified units across ranks
+```{r uncs across ranks}
+sv.phyl.p<-as.data.frame(table(tax_table(ps.b.r)[, "Phylum"], exclude = NULL))
+sv.phyl.ord.p <- sv.phyl.p[order(-sv.phyl.p$Freq),]
+sv.phyl.c<-as.data.frame(table(tax_table(ps.b.r)[, "Class"], exclude = NULL))
+sv.phyl.ord.c <- sv.phyl.c[order(-sv.phyl.c$Freq),] 
+sv.phyl.o<-as.data.frame(table(tax_table(ps.b.r)[, "Order"], exclude = NULL))
+sv.phyl.ord.o <- sv.phyl.o[order(-sv.phyl.o$Freq),] 
+sv.phyl.f<-as.data.frame(table(tax_table(ps.b.r)[, "Family"], exclude = NULL))
+sv.phyl.ord.f <- sv.phyl.f[order(-sv.phyl.f$Freq),] 
+sv.phyl.g<-as.data.frame(table(tax_table(ps.b.r)[, "Genus"], exclude = NULL))
+sv.phyl.ord.g <- sv.phyl.g[order(-sv.phyl.g$Freq),] 
+
+head(sv.phyl.ord.p, n=10)
+p<-6006/sum(sv.phyl.ord.p$Freq)*100
+head(sv.phyl.ord.c, n=10)
+c<-26731/sum(sv.phyl.ord.c$Freq)*100
+head(sv.phyl.ord.o, n=10)
+o<-41295/sum(sv.phyl.ord.o$Freq)*100
+head(sv.phyl.ord.f, n=10)
+f<-47228/sum(sv.phyl.ord.f$Freq)*100
+head(sv.phyl.ord.g, n=10)
+g<-56551/sum(sv.phyl.ord.g$Freq)*100
+
+df<-data.frame(Phylum=p,Class=c,Order=o,Family=f,Genus=g)
+df.p<-t(df)
+colnames(df.p) <- "Unclassified"
+df.p<-as.data.frame(df.p)
+df.p$rank <- rownames(df.p)
+rownames(df.p) <- c()
+df.p$rank = factor(df.p$rank, levels = c("Phylum","Class","Order","Family","Genus"))
+ggplot(df.p) + 
+  geom_point(aes(x=rank, y=Unclassified, color=rank)) +
+  theme(legend.position = "none")
+```
