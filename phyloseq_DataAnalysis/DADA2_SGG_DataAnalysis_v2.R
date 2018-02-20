@@ -17,6 +17,10 @@ library(picante)
 library(igraph)
 library(cowplot)
 library(plotly)
+library(ggnet)
+library(network)
+library(sna)
+library(intergraph)
 
 # Import SV table, taxonomy ----
 SGG_SVt = readRDS("/media/andre/B2F8C9A0F8C962E9/SGG_16S_analysis/SGG_16S_data_trimmed_DADA2_table/seqtab_final.rds")
@@ -742,28 +746,37 @@ ggsave("SGG-PrevalenceVSTotalCounts.plot.png",
        width=20)
 
 #### Networking! ####
-ps.b.z <- prune_taxa(taxa_sums(ps.b) > 5, ps.b)
-
-ps.b.r.f = filter_taxa(ps.b.r, function(x) sum(x) > .001, TRUE)
+ps.b.r.f = filter_taxa(ps.b.r, function(x) sum(x) > .01, TRUE)
 taxa_names(ps.b.r.f) <- paste("SV-", 1:ntaxa(ps.b.r.f), sep="")
+ps.b.r.f.jsd <- phyloseq::distance(ps.b.r.f, method = "jaccard")
 
-plot_net(ps.b.r.f, maxdist = 0.5, type="taxa", 
-         laymeth="graphopt", rescale=TRUE,
-         # color="Site.name", shape="Month",
+
+#save this for when issue https://github.com/joey711/phyloseq/issues/885 is answered
+taxa_net<-plot_net(ps.b.r.f, maxdist = 0.8, type="taxa", 
+         laymeth="fruchterman.reingold",
+         rescale = TRUE,
          point_alpha = 0.6)
+taxa_net
 
-ps.b.ig = make_network(ps.b.r.f,
-                       max.dist = 0.5,
-                       type = "taxa")
+#samples
 
-p = plot_net(ps.b.ig, ps.b.r.f,
-                 color="Phylum",
-                 point_size = 3)
-p
-p + scale_color_manual(values=pcols)
+sample_net.ig <- make_network(ps.b.r.f, max.dist=0.8)
 
-ps.b.ig.cl<-cluster_louvain(ps.b.ig, weights = NULL)
-plot(ps.b.ig.cl, ps.b.ig)
+V(sample_net.ig)$Site.name=as.character(sample_data(ps.b.r.f)$Site.name[match(V(sample_net.ig)$name,
+                                  sample_data(ps.b.r.f)$Sample_Code)])
+V(sample_net.ig)$Month=as.character(sample_data(ps.b.r.f)$Month[match(V(sample_net.ig)$name,
+                                  sample_data(ps.b.r.f)$Sample_Code)])
+#this is probably wrong, but will do for now (?)
+E(sample_net.ig)$weight <- strength(sample_net.ig, mode = "all")
+E(sample_net.ig)$weight <- E(sample_net.ig)$weight/18
+
+sample_net.ig.plot<-ggnet2(sample_net.ig, 
+                           color="Site.name", shape="Month", 
+                           size=5, alpha = 0.8, 
+                           edge.size = "weight") +
+    scale_color_manual(values = colorRampPalette(brewer.pal(12, "Paired"))(13)) +
+  theme(legend.text = element_text(size=10))
+sample_net.ig.plot
 
 #### Temporal trends ####
 #first indicator of temporal trends might be alpha-diversity
@@ -776,7 +789,7 @@ plot_richness(ps.b, x="Month", measures="Observed",
         axis.title.y = element_text("Shannon Diversity"))
 
 plot_richness(ps.b, x="Month", measures="Shannon",
-                        color="Site.name") + 
+              color="Site.name") + 
   geom_point(size = 5, alpha=0.4) +
   facet_wrap(~Site.name) +
   theme(legend.position = "none",
@@ -857,7 +870,7 @@ ex2 <- prune_taxa(month_sig_SVs, ps.b.r)
 plot_bar(ex2, x="Site.name", fill="Phylum") +
   facet_wrap(~Month) +
   theme(axis.text.x = element_text(angle = 35, vjust=1, hjust=1),
-      axis.title.x = element_blank())
+        axis.title.x = element_blank())
 ggsave("SGG-DiffAbDESeq2SVs-Month.plot.png", 
        height=8, 
        width=16)

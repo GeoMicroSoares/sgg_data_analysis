@@ -122,7 +122,7 @@ ps.b.deep_128.glom.df.plot<-ggplot(ps.b.deep_128.glom.df[Abundance > 0.03],
   scale_fill_manual(values = colorRampPalette(brewer.pal(12, "Paired"))(colourCount_128), 
                     na.value = "gray48")
 ```
-```{r , fig.height=20, fig.width=14}
+```{r fig.width=14, message=FALSE, warning=FALSE, , fig.height=16}
 ps.b.deep_128.glom.df.plot
 ```
 
@@ -166,7 +166,8 @@ ps.b.r.ProteoCl.AllPhy.temp<-na.omit(ps.b.r.ProteoCl.AllPhy.temp, cols=c("Taxa")
 ps.b.r.ProteoCl.AllPhy.temp$Taxa = factor(ps.b.r.ProteoCl.AllPhy.temp$Taxa, 
                                                        levels = c("Betaproteobacteria","Epsilonproteobacteria","Gammaproteobacteria",
                                                                   "Parcubacteria","Omnitrophica","Actinobacteria","Deltaproteobacteria"))
-
+ps.b.r.ProteoCl.AllPhy.temp$Month = factor(ps.b.r.ProteoCl.AllPhy.temp$Month,
+                                           levels=c("December", "August", "April"))
 taxa_number_pl<-length(unique(ps.b.r.ProteoCl.AllPhy.temp$Site.name)) +1
 
 ps.b.r.ProteoCl.AllPhy.temp.plot <- ggplot(subset(ps.b.r.ProteoCl.AllPhy.temp, 
@@ -181,24 +182,8 @@ ps.b.r.ProteoCl.AllPhy.temp.plot <- ggplot(subset(ps.b.r.ProteoCl.AllPhy.temp,
              ncol=4, nrow=2)+
   theme(axis.title.y = element_blank()) +
   coord_flip() +
-  scale_x_discrete(expand=c(0.05, 0.05))
-
-#family-level, not much
-ps.b.deep_128.glom.df.f<-na.omit(ps.b.deep_128.glom.df, cols=c("Family"))
-ps.b.deep_128.glom.df.f<-subset(ps.b.deep_128.glom.df.f, 
-                                                  Family %in% c("Helicobacteraceae","Gallionellaceae"))
-ps.b.deep_128.glom.df.f$Family = factor(ps.b.deep_128.glom.df.f$Family, 
-                                                       levels = c("Gallionellaceae","Helicobacteraceae"))
-ps.b.deep_128.glom.df.f.plot <- ggplot(ps.b.deep_128.glom.df.f, 
-       aes(x=Month, y=Abundance, color=Site.name)) +
-  geom_point(aes(fill=Site.name, 
-                 color=Site.name)) +
-  geom_smooth(aes(group=Site.name),
-              method="loess", se = FALSE) +
-  facet_wrap(~Family)+
-  theme(axis.title.y = element_blank()) +
-  coord_flip() +
-  scale_x_discrete(expand=c(0.05, 0.05))
+  scale_x_discrete(expand=c(0.05, 0.05)) +
+  scale_color_manual(values = colorRampPalette(brewer.pal(12, "Paired"))(13))
 
 #genus-level, very interesting
 ps.b.deep_128.glom.df.g<-na.omit(ps.b.deep_128.glom.df, cols=c("Genus"))
@@ -208,6 +193,8 @@ ps.b.deep_128.glom.df.g<-subset(ps.b.deep_128.glom.df.g,
 ps.b.deep_128.glom.df.g$Genus = factor(ps.b.deep_128.glom.df.g$Genus, 
                                                        levels = c("Gallionella","Sideroxydans","Ferriphaselus",
                                                                "Sulfuricurvum","Sulfurovum","Sulfurimonas"))
+ps.b.deep_128.glom.df.g$Month = factor(ps.b.deep_128.glom.df.g$Month,
+                                           levels=c("December", "August", "April"))
 ps.b.deep_128.glom.df.g.plot <- ggplot(ps.b.deep_128.glom.df.g, 
        aes(x=Month, y=Abundance, color=Site.name)) +
   geom_point(aes(fill=Site.name, 
@@ -217,46 +204,58 @@ ps.b.deep_128.glom.df.g.plot <- ggplot(ps.b.deep_128.glom.df.g,
   facet_wrap(~Genus)+
   theme(axis.title.y = element_blank()) +
   coord_flip() +
-  scale_x_discrete(expand=c(0.05, 0.05))
-
+  scale_x_discrete(expand=c(0.05, 0.05)) +
+  scale_color_manual(values = colorRampPalette(brewer.pal(12, "Paired"))(13))
 ```
-```{r ,fig.width=14}
+```{r message=FALSE, warning=FALSE, ,fig.width=14}
 ps.b.r.ProteoCl.AllPhy.temp.plot
 ps.b.deep_128.glom.df.g.plot
 ```
 
-Interestingly, seasonality seems to have a strong effect on the dataset. Communities are clearly different in the Summer and even at genus level trends are noted.
+Interestingly, seasonality seems to have a strong effect on the dataset. Specifically, at the genus-level, it seems most of the spikes in relative abundance are due to the Summmer, and only a few sites show effects that correlate with the year passing by. However, lest us not forget only 20% of the genera were classified with SILVA_128 and SILVA_132 didn't really improve on that.
+The contradicting trends between Crumlin and Celynen at class-level abundance of Epsilonproteobacteria seem to be explained by the higher abundances of genus Sulfurovum, albeit Sulfuricurvum shows the opposite trends.
 
-So, how does this translate to beta-diversity?
+This lack of proper strong relations between month and genera might have to do with the fact that only ~19% of all SVs were classified at genus-level:
 
-##3 - Community structure
+```{r}
+sv.phyl.g<-as.data.frame(table(tax_table(ps.b.r)[, "Genus"], exclude = NULL))
+sv.phyl.ord.g <- sv.phyl.g[order(-sv.phyl.g$Freq),] 
+head(sv.phyl.ord.g, n=10)
+1-56551/sum(sv.phyl.ord.g$Freq)
+```
 
-```{r pcoa}
+Further on this, seasonality should have a strong effect on the dataset, right?
+
+```{r}
+set.seed(1)
+ps_jsd <- phyloseq::distance(ps.b.r, method = "jsd")
+sampledf <- data.frame(sample_data(ps.b.r))
+adonis(ps_jsd ~ Month, data = sampledf, strata = sampledf$Time_point, permutations=1e3)
+beta_m <- betadisper(ps_jsd, sampledf$Month)
+permutest(beta_m)
+```
+
+Seems it doesn't! It seems Month doesn't explain significantly variation in the dataset (other variables do), but at least (permutest on betadisper) different month don't have the same dispersions. This can mean that adonis() results then aren't that good but who cares, I'm looking at only a number of genera in the dataset and this takes in account the whole thing irrespectively of taxonomy. #commonsense
+
+A more visual representation of this could be the following:
+```{r}
 ps.b.r.pcoa  <- ordinate(ps.b.r, "PCoA", distance="jsd", 
                          k=2, trymax=1e3, weighted=TRUE)
 
-ps.b.r.pcoa.v = data.table(ps.b.r.pcoa$vectors, keep.rownames = TRUE)
-sdt = data.table(as(sample_data(ps.b.r), "data.frame"), keep.rownames = TRUE)
-
-setnames(ps.b.r.pcoa.v, "rn", "Sample.ID")
-df <- subset(sdt, select = -c(Sample.ID) )
-setnames(df, "rn", "Sample.ID")
-setkey(ps.b.r.pcoa.v, Sample.ID)
-setkey(df, Sample.ID)
-ps.b.r.pcoa.v <- ps.b.r.pcoa.v[df]
-# Axis 1
-ps.b.r.pcoa.v.plot=ggplot(ps.b.r.pcoa.v, aes(Month, Axis.1, color = Site.name)) +
-  geom_point(size = 3) +
-  geom_point(size = 5, alpha=0.4) + 
-  facet_wrap(~Site.name) +
-  theme(axis.text.x = element_text(angle = 25, vjust=1, hjust=1)) +
-  ylab("JSD PCoA Axis 1")
-```
-```{r , fig.height=12, fig.width=14}
-ps.b.r.pcoa.v.plot
+ps.b.r.pcoa.plot.a1 <- plot_ordination(ps.b.r, ps.b.r.pcoa, axes = c(1,2),
+                                       color="Site.name", shape="Month") +
+  geom_polygon(aes(fill=Site.name), alpha=0.5) +
+  geom_point(alpha=0.5, size=4)+
+  facet_wrap(~Site.name, nrow = 4, ncol=4) +
+  scale_alpha(guide = 'none') +
+  theme(legend.position = "none")
 ```
 
-Meh. It seems that except for month-specific outliers, seasonality doesn't have much effect on the beta-diversity.
+```{r, fig.height=12, fig.width=14}
+ps.b.r.pcoa.plot.a1
+```
+
+There we are, not a lot of variation beta-diversity-wise across the year aside from some exceptions.
 
 And is alpha-diversity impacted by seasonality?
 
@@ -274,55 +273,15 @@ ps.b.rich=plot_richness(ps.b, x="Month", measures="Shannon",
 ps.b.rich
 ```
 
-It seems like so. Specifically, Blaenavon and Celynen N seem to decrease along the year. On the other side, Cefn Hengoed, Glyncastle, Morlais seem to be positively correlated with the passing of the year.
+It seems like so. Specifically, Blaenavon and Celynen N seem to decrease along the year. On the other side, Cefn Hengoed, Glyncastle, Morlais seem to be positively correlated with the passing of the year. However, most indicate slight Summer-related changes in community composition. This coincides loosely with the genus-level plot.
 
-#####################################
-### START FROM HERE ################
-#####################################
-
-
-```{r investigate neg pos cors month}
-ps.b.r.posnegs = subset_samples(ps.b.r, Site.name=="Blaenavon" | Site.name=="Celynen North" | Site.name=="Cefn Hengoed" | Site.name=="Glyncastle" | Site.name=="Morlais")
-ps.b.r.posnegs.class = subset_taxa(ps.b.r.posnegs, Class=="Betaproteobacteria" | Class=="Deltaproteobacteria" | Class=="Gammaproteobacteria" | Class=="Epsilonproteobacteria" | Class=="Elusimicrobia")
-ps.b.r.posnegs.glom <- tax_glom(ps.b.r.posnegs.class, taxrank = 'Order', NArm = FALSE)
-ps.b.r.posnegs.glom.psdf <- data.table(psmelt(ps.b.r.posnegs.glom))
-ps.b.r.posnegs.glom.psdf$Order <- as.character(ps.b.r.posnegs.glom.psdf$Order)
-ps.b.r.posnegs.glom.psdf$Abundance <- as.numeric(ps.b.r.posnegs.glom.psdf$Abundance)
-ps.b.r.posnegs.glom.psdf.plot<-ggplot(ps.b.r.posnegs.glom.psdf[Abundance > 0.05],
-                                          aes(x=Order,y=Abundance,
-                                              fill=Order)) + 
-  geom_point(aes(color=Order, fill=Order,
-                 size=Abundance)) + 
-  facet_rep_grid(Site.name~Month)+
-  theme(axis.title.x = element_blank(),
-        axis.text.x = element_blank(),
-        axis.ticks.x = element_blank()) +
-  coord_fixed(ratio = 6)
-```
-```{r , fig.height=12, fig.width=14}
-ps.b.r.posnegs.glom.psdf.plot
-```
-
-Ok then, some clear trends showing up, let's try and identify if this is a large-scale effort or the work of specific SVs.
-
-```{r investigate neg pos cors month deeper}
-ps.b.r.posnegs.genus.glom <- tax_glom(ps.b.r.posnegs.class, taxrank = 'Genus', NArm = FALSE)
-ps.b.r.posnegs.genus.glom.psdf <- data.table(psmelt(ps.b.r.posnegs.genus.glom))
-ps.b.r.posnegs.genus.glom.psdf$Genus <- as.character(ps.b.r.posnegs.genus.glom.psdf$Genus)
-ps.b.r.posnegs.genus.glom.psdf$Abundance <- as.numeric(ps.b.r.posnegs.genus.glom.psdf$Abundance)
-ps.b.r.posnegs.genus.glom.psdf.plot<-ggplot(ps.b.r.posnegs.genus.glom.psdf[Abundance > 0.01],
-                                          aes(x=Genus,y=Abundance,
-                                              fill=Genus)) + 
-  geom_point(aes(color=Genus, fill=Genus,
-                 size=Abundance)) +
-  facet_rep_grid(Site.name~Month) +
-  theme(axis.title.x = element_blank(),
-        axis.text.x = element_blank(),
-        axis.ticks.x = element_blank()) +
-  guides(col = guide_legend(nrow = 22))
-```
-```{r , fig.height=12, fig.width=14}
-ps.b.r.posnegs.genus.glom.psdf.plot
-```
-
-Interesting stuff, seems Rhodoferax was ignored as a significant contributor for Betaproteobacterial trends across the dataset. Revisit that.
+## Conclusions:
+1. Fe- and S-rich sites present distinct taxonomic profiles.
+2. Fe-rich profiles are mainly populated by Betaproteobacterial taxa, namely genera Gallionella, Sideroxydans and only occuring in Taffs Well, Ferriphaselus.
+3. S-rich sites are rich in Epsilonproteobacteria including genera Sulfuricurvum, Sulfurovum and Sulfurimonas.
+4. Lindsay presents an unsual site in the dataset, where CPR phylum Parcubacteria and Proteobacteria amount to ~40% of the profile, the remainder phyla being present in very low proportions.
+5, Beta-, Epsilon- and Gammaproteobacteria seem to be affected by seasonality in general by either peaking or bottoming in relative abundance in the Summer. In some sites, they seem to increase or decrease along the year.
+6. At the genus-level, Gallionella relative presence in the dataset seems to markedly decrease across the year in Blaenavon. There's a steep decrease in Sideroxydans presence in Mountain Gate. Ferriphaselus increases in abundance across the year but only in Taffs Well.
+7. Sulfuricurvum and Sulfurovum show a clear interplay in relative presence, with the first peaking in abundance in August, and the latter on April and December. This is clearly seen for Crumlin Navigation and Celynen North. In Six Bells, the opposite happen at a less obvious degree.
+8. In spite of all this, Month doesn't significantly explain variation in the dataset. This is better seen through a PCoA where in spite of some variation in general, samples from a same site cluster in spite of season.
+9. As expected, alpha-diversity is affected by season, reflecting the seen above genus-level trends.
