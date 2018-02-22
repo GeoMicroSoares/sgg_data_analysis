@@ -224,6 +224,23 @@ ps.b.r.ProteoCl.AllPhy.plot<-ggplot(ps.b.r.ProteoCl.AllPhy[Abundance > 0],
 ps.b.r.ProteoCl.AllPhy.plot
 ggsave("SGG-0.01pc-Phylum+ProtoCl-R-Month+Site.plot.png", height=8, width=16)
 
+# Top 100 SVs across the dataset ####
+Top100SVs <- names(sort(taxa_sums(ps.b.r), TRUE)[1:100])
+Top100SVs.ps.b.r   <- prune_taxa(Top100SVs, ps.b.r)
+ps.b.r.Top100SVs.glom <- tax_glom(Top100SVs.ps.b.r, taxrank = 'Order', NArm = FALSE)
+ps.b.r.Top100SVs.glom.psdf <- data.table(psmelt(ps.b.r.Top100SVs.glom))
+ps.b.r.Top100SVs.glom.psdf$Order <- as.character(ps.b.r.Top100SVs.glom.psdf$Order)
+ps.b.r.Top100SVs.plot<-ggplot(ps.b.r.Top100SVs.glom.psdf[Abundance > 0], 
+                                    aes(x = Site.name, y = Abundance/3, fill = Order)) + 
+  facet_grid(Month~.) +
+  geom_bar(stat = "identity") +
+  theme(axis.title.x = element_blank(),
+        axis.text.x = element_text(angle = 45, hjust = 1)) + 
+  guides(fill = guide_legend(keywidth = 1, keyheight = 1)) +
+  scale_fill_manual(values = colorRampPalette(brewer.pal(12, "Paired"))(16), na.value="grey48") +
+  ylab("Relative Abundance\n")
+ps.b.r.Top100SVs.plot
+
 # Genus-level tax, transformed ====
 #Tracking taxa responsible for Beta, Epsilonproteobacteria dominances
 # Gallionellaceae, not transformed ####

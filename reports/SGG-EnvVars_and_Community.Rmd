@@ -1,0 +1,283 @@
+---
+title: "SGG - How does metadata relate to the microbiome?"
+author: "André Soares"
+date: "8 January 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r initial loadings, include=FALSE}
+library(dada2); packageVersion("dada2")
+library(ggplot2); packageVersion("ggplot2")
+library(phyloseq); packageVersion("phyloseq")
+library(data.table); packageVersion("data.table")
+library(DESeq2); packageVersion("DESeq2")
+library(dplyr)
+library(plyr)
+library(magrittr)
+library(RColorBrewer)
+library(phangorn)
+library(DECIPHER)
+library("structSSI")
+library(ips)
+library(msa)
+library(picante)
+library(igraph)
+library(cowplot)
+library(plotly)
+library(lemon)
+library(GGally)
+```
+
+```{r load SV data, echo=FALSE}
+SGG_SVt = readRDS("/media/andre/B2F8C9A0F8C962E9/SGG_16S_analysis/SGG_16S_data_trimmed_DADA2_table/seqtab_final.rds")
+SGG_Tax = readRDS("/media/andre/B2F8C9A0F8C962E9/SGG_16S_analysis/SGG_16S_data_trimmed_DADA2_table/tax_final.rds")
+sgg_metadata<-read.csv("/media/andre/B2F8C9A0F8C962E9/SGG_16S_analysis/SGG_16S_metadata/SGG_metadata.csv", header=TRUE)
+order<-rownames(SGG_SVt)
+sgg_metadata_ord<-sgg_metadata[match(order, sgg_metadata$Sample_Code),]
+rownames(sgg_metadata_ord) <- sgg_metadata_ord$Sample_Code
+ps <- phyloseq(otu_table(SGG_SVt, taxa_are_rows=FALSE),
+               sample_data(sgg_metadata_ord), 
+               tax_table(SGG_Tax))
+ps.a = subset_samples(ps, Site.name != "Taffs Well PUMPED")
+ps.b = subset_samples(ps.a, Sample_type != "Control")
+ps.b <- prune_taxa(taxa_sums(ps.b) > 0, ps.b)
+#order months
+sample_data(ps.b)$Month = factor(sample_data(ps.b)$Month, 
+                                 levels = c("April","August","December"))
+#to relative abundances
+ps.b = subset_taxa(ps.b, Kingdom %in% c("Archaea", "Bacteria"))
+ps.b.r <-  transform_sample_counts(ps.b, function(x) {x/sum(x)} ) 
+```
+
+##1 - Visualizing SGG metadata
+
+
+```{r main metadata}
+sample_data(ps.b.r)$Site.name = factor(sample_data(ps.b.r)$Site.name, 
+                                          levels = c("Blaenavon","Cefn Hengoed","Mountain Gate","Taff Bargoed",
+                                                     "Glyncastle","Dinas","Ynysarwed","Celynen North","Morlais",
+                                                     "Lindsay","Six Bells","Crumlin Navigation","Taffs Well"))
+metadata<-sample_data(ps.b.r)
+#Temp
+temp_table.plot<-ggplot(metadata, 
+                        aes(x=Site.name, y=Temp.C, fill=Month)) +
+  geom_point(aes(fill=Month, color=Month),
+             size=2,
+             position = position_dodge(width=0.5)) +
+  geom_hline(yintercept = 13.4,
+             color="dark red",
+             linetype="dashed") +
+  geom_hline(yintercept = 11,
+             color="gray",
+             linetype="dashed") +
+  theme(axis.title.x=element_blank(),
+        axis.title.y = element_text(size=14),
+        axis.text.x = element_blank(),
+        axis.text.y = element_text(size=12),
+        legend.position = "none") +
+  annotate("text", "Mountain Gate", 14, vjust = -1, hjust=.45, size= 4,
+           label = "Average mine water temperature (Farr et al, 2016)") +
+  labs(y=expression(paste("Temperature (",degree,"C)")))
+
+#DO
+do.plot<-ggplot(metadata, 
+                        aes(x=Site.name, y=`DO..sat`, fill=Month)) +
+  geom_point(aes(fill=Month, color=Month),
+             size=2,
+             position = position_dodge(width=0.5)) +
+  geom_line(aes(group=Month, color=Month),
+            stat="smooth", method="loess", 
+            alpha = 0.4, size=1.5) +
+  geom_hline(yintercept = 50,
+           color="gray60",
+           linetype="dashed") +
+  theme(axis.title.x=element_blank(),
+        axis.title.y = element_text(size=14),
+        axis.text.x = element_blank(),
+        axis.text.y = element_text(size=12),
+        legend.position = "none") +
+  labs(y="Dissolved Oxygen (%)")
+#Sulfate
+so4.plot<-ggplot(metadata, 
+                        aes(x=Site.name, y=`SO4..µg.ml`, fill=Month)) +
+  geom_point(aes(fill=Month, color=Month),
+             size=2,
+             position = position_dodge(width=0.5)) +
+  geom_line(aes(group=Month, color=Month),
+            stat="smooth", method="loess", 
+            alpha = 0.4, size=1.5) +
+  geom_hline(yintercept = 500,
+         color="gray60",
+         linetype="dashed") +
+  theme(axis.title.x=element_blank(),
+        axis.title.y = element_text(size=14),
+        axis.text.x = element_blank(),
+        axis.text.y = element_text(size=12),
+        legend.position = "none") +
+  labs(y=expression(paste("SO"[4]^{-2},"(",mu,"g.mL"^{-1},")"))) +
+  guides(size=FALSE)
+#pH
+pH.plot<-ggplot(metadata, 
+                        aes(x=Site.name, y=`pH`, fill=Month)) +
+  geom_point(aes(fill=Month, color=Month),
+             size=2,
+             position = position_dodge(width=0.5)) +
+  geom_line(aes(group=Month, color=Month),
+            stat="smooth", method="loess", 
+            alpha = 0.4, size=1.5) +
+  geom_hline(yintercept = 7,
+           color="gray60",
+           linetype="dashed") +
+  theme(axis.title.x=element_blank(),
+        axis.title.y = element_text(size=14),
+        axis.text.x = element_blank(),
+        axis.text.y = element_text(size=12),
+        legend.position = "none") +
+  labs(y="pH") +
+  guides(size=FALSE)
+#EC
+ec.plot<-ggplot(metadata, 
+                        aes(x=Site.name, y=`EC.uS.cm`, fill=Month)) +
+  geom_point(aes(fill=Month, color=Month),
+             size=2,
+             position = position_dodge(width=0.5)) +
+  geom_line(aes(group=Month, color=Month),
+            stat="smooth", method="loess", 
+            alpha = 0.4, size=1.5) +
+  geom_hline(yintercept = 2000,
+           color="gray60",
+           linetype="dashed") +
+  geom_hline(yintercept = 1000,
+           color="grey80",
+           linetype="dashed") +
+  scale_y_continuous(breaks=c(0,500,1000,1500,2000,2500,3000)) +
+  theme(axis.title.x=element_blank(),
+        axis.title.y = element_text(size=14),
+        axis.text.x = element_text(angle = 25, hjust = 1, size= 14),
+        axis.text.y = element_text(size=12),
+        legend.position = "top",
+        legend.title = element_text(face = "bold"),
+        legend.background = element_rect(fill="gray95", size=.5, linetype="dotted")) +
+  labs(y=expression(paste("EC (",mu,"S.cm"^{-1},")")))
+```
+```{r message=FALSE, warning=FALSE, fig.height=11, fig.width=10}
+plot_grid(temp_table.plot, do.plot, so4.plot, pH.plot, ec.plot, ncol = 1, align='v', rel_heights = c(1,1,1,1,1.75))
+```
+
+Coolsies, but these are only 5 of them. How does the overal picture look?
+
+```{r metadata cors}
+metadata_df=as(sample_data(ps.b.r),"data.frame")
+#remove all columns with one or more NA entry
+#NA in DO substituted to the mean of the two values in the site
+metadata_df$DO..sat[is.na(metadata_df$DO..sat)] <- 44.1
+metadata_noNA = metadata_df[ , colSums(is.na(metadata_df)) == 0]
+cols_to_go <- names(metadata_noNA) %in% c("Sample_Code", "Sample.ID", "Sample_type","Site.ID","Site.name","Time_point","Month","Batch",
+                               "Date","Time")
+metadata_noNA_f <- metadata_noNA[!cols_to_go]
+```
+```{r message=FALSE, warning=FALSE, fig.height=11, fig.width=12}
+ggcorr(metadata_noNA_f, method = c("everything", "kendall"), 
+       nbreaks = 10, hjust = 1, size=4, layout.exp = 2)
+```
+
+There's clearly a lot of variation, but definitely there's loads more to learn on how these variables relate.
+
+But how do they relate to microbial community structure?
+
+```{r ordination metadata}
+ps_sig <- phyloseq(otu_table(SGG_SVt, taxa_are_rows=FALSE),
+                   sample_data(metadata_noNA), 
+                   tax_table(SGG_Tax))
+sample_data(ps_sig)$Month = factor(sample_data(ps_sig)$Month, 
+                                   levels = c("April","August","December","Control"))
+ps_sig_ntf = subset_samples(ps_sig, Site.name != "Taffs Well PUMPED")
+ps_sig_ntf_nc = subset_samples(ps_sig_ntf, Sample_type != "Control")
+ps_sig_ntf_nc_noab = subset_taxa(ps_sig_ntf_nc, Kingdom %in% c("Archaea", "Bacteria"))
+ps_cap_r = transform_sample_counts(ps_sig_ntf_nc_noab, function(x) x/sum(x))
+
+set.seed(1)
+# Calculate Jensen-Shannon distance matrix
+ps_cap_r_jsd <- phyloseq::distance(ps_cap_r, method = "jsd")
+# make a data frame from the sample_data
+sampledf_cap <- data.frame(sample_data(ps_cap_r))
+# Adonis test: "how is variation attributed to different experimental" variables?
+# null hypothesis: tested metadata categories have the same centroid.
+adonis(ps_cap_r_jsd ~ Site.name + Temp.C + Month + EC.uS.cm + DO..sat + K.µg.ml + Na.µg.ml + Cl..µg.ml + SO4..µg.ml + X6.Li.ng.ml + X7.Li.ng.ml + X7.Li..He..ng.ml + X11.B.ng.ml + X45.Sc.ng.ml + X55.Mn.ng.ml + X59.Co.ng.ml + X60.Ni.ng.ml + X69.Ga.ng.ml + X75.As..He..ng.ml + X78.Se.ng.ml + X85.Rb.ng.ml + X88.Sr.ng.ml + X89.Y.ng.ml + X125.Te.ng.ml + X133.Cs.ng.ml + X135.Ba.ng.ml + X139.La.ng.ml + X146.Nd.ng.ml + X153.Eu.ng.ml + X166.Er.ng.ml + X175.Lu.ng.ml + X238.U.ng.ml, 
+       data = sampledf_cap, strata = sampledf_cap$Time_point, permutations=1e3)
+```
+
+Yay, so much crap! Let's keep the significant variables and include them in the CAP formula.
+
+```{r cap on sig metadata, message=FALSE, warning=FALSE}
+#CAP
+CAP_ps_cap_r <- ordinate(ps_cap_r,
+                           method = "CAP",
+                           distance = "jsd",
+                           k=3, trymax=1e3, weighted=TRUE,
+                           formula = ~ Site.name + Month + Temp.C + DO..sat + Cl..µg.ml + SO4..µg.ml+ X55.Mn.ng.ml + X89.Y.ng.ml + X139.La.ng.ml)
+
+CAP_sig_plot_a12 <- plot_ordination(ps_cap_r,
+                                    ordination = CAP_ps_cap_r, color = "Site.name", axes = c(1,2)) +
+  aes(shape = Month) +
+  geom_point(aes(colour = Site.name), alpha = 0.4, size = 4) +
+  geom_polygon(aes(fill=Site.name), alpha=0.5) +
+  geom_point(aes(colour = Site.name), size = 1.5)+
+  scale_color_manual(values = colorRampPalette(brewer.pal(12, "Paired"))(13)) +
+  scale_fill_manual(values = colorRampPalette(brewer.pal(12, "Paired"))(13)) +
+  theme(legend.position = "none")
+
+arrowmat_CAP <- vegan::scores(CAP_ps_cap_r, display = "bp")
+arrowmat_CAP<-arrowmat_CAP[!grepl("Site.name", rownames(arrowmat_CAP)),]
+arrowmat_CAP<-arrowmat_CAP[!grepl("Month", rownames(arrowmat_CAP)),]
+arrowdf_CAP <- data.frame(labels = rownames(arrowmat_CAP), arrowmat_CAP)
+arrow_map_CAP <- aes(xend = CAP1, yend = CAP2,
+                     x = 0, y = 0,
+                     shape = NULL, color = NULL,
+                     label = labels)
+label_map_CAP <- aes(x = 1.3 * CAP1, y = 1.3 * CAP2,
+                     shape = NULL, color = NULL,
+                     label = labels)
+arrowhead_CAP = arrow(length = unit(0.02, "npc"))
+
+CAP_sig_plot_a12 = CAP_sig_plot_a12 +
+  geom_segment(mapping = arrow_map_CAP, size = .5, 
+               data = arrowdf_CAP, color = "gray", arrow = arrowhead_CAP) +
+  geom_text(mapping = label_map_CAP, size = 4, 
+            data = arrowdf_CAP, show.legend = FALSE)
+
+arrowmat_CAP_13 <- vegan::scores(CAP_ps_cap_r, display = "bp", choices=c(1,3))
+arrowmat_CAP_13<-arrowmat_CAP_13[!grepl("Site.name", rownames(arrowmat_CAP_13)),]
+arrowmat_CAP_13<-arrowmat_CAP_13[!grepl("Month", rownames(arrowmat_CAP_13)),]
+arrowdf_CAP_13 <- data.frame(labels = rownames(arrowmat_CAP_13), arrowmat_CAP_13)
+arrow_map_CAP_13 <- aes(xend = CAP1, yend = CAP3,
+                        x = 0, y = 0,
+                        shape = NULL, color = NULL,
+                        label = labels)
+label_map_CAP_13 <- aes(x = 1.3 * CAP1, y = 1.3 * CAP3,
+                        shape = NULL, color = NULL,
+                        label = labels)
+arrowhead_CAP_13 = arrow(length = unit(0.02, "npc"))
+
+CAP_sig_plot_a13 <- plot_ordination(ps_cap_r,
+                                    ordination = CAP_ps_cap_r, color = "Site.name",axes = c(1,3)) +
+  aes(shape = Month) +
+  geom_point(aes(colour = Site.name), alpha = 0.4, size = 4) +
+  geom_polygon(aes(fill=Site.name), alpha=0.5) +
+  geom_point(aes(colour = Site.name), size = 1.5) +
+  geom_segment(mapping = arrow_map_CAP_13, size = .5,
+               data = arrowdf_CAP_13, color = "gray", arrow = arrowhead_CAP_13) +
+  geom_text(mapping = label_map_CAP_13, size = 4,
+            data = arrowdf_CAP_13, show.legend = FALSE)+
+  scale_color_manual(values = colorRampPalette(brewer.pal(12, "Paired"))(13)) +
+  scale_fill_manual(values = colorRampPalette(brewer.pal(12, "Paired"))(13))
+
+ps.b.r.CAP_sig.plot<-plot_grid(CAP_sig_plot_a12, CAP_sig_plot_a13,
+                               labels=c("A","B"))
+```
+```{r, fig.height=8, fig.width=14}
+ps.b.r.CAP_sig.plot
+```
