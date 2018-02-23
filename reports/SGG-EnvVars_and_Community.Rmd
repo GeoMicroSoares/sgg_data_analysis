@@ -281,3 +281,208 @@ ps.b.r.CAP_sig.plot<-plot_grid(CAP_sig_plot_a12, CAP_sig_plot_a13,
 ```{r, fig.height=8, fig.width=14}
 ps.b.r.CAP_sig.plot
 ```
+
+So, as previously seen, two major groups composed of high-S and high-Fe samples. It seems DO and SO4 drive community structure in opposite ways. Also, temperature seems to play a role in defining high-S sample groups.
+
+Is this ordination's goodness of fit better than random models? i.e. are the constraints in this model significant?
+
+```{r}
+anova(CAP_ps_cap_r, perm=1e3)
+```
+
+Do these significant metadata variables have the same dispersions?
+
+* Homogeneity of dispersion test for significant categories:
+
+***Null hypothesis**: tested metadata categories have the same dispersions (variance).
+```betadisper``` calculates average distances of samples to group centroids (from metadata categories)
+```permutest``` calculates ANOVAS on average distances from betadisper() to test if one or more groups is more variable than others
+
+```{r betadisper}
+#Site name
+beta_s <- betadisper(ps_cap_r_jsd, sampledf_cap$Site.name)
+permutest(beta_s)
+#Month
+beta_m <- betadisper(ps_cap_r_jsd, sampledf_cap$Month)
+permutest(beta_m)
+#Temperature
+beta_t <- betadisper(ps_cap_r_jsd, sampledf_cap$Temp.C)
+permutest(beta_t)
+#Cl
+beta_c <- betadisper(ps_cap_r_jsd, sampledf_cap$Cl..µg.ml)
+permutest(beta_c)
+#DO
+beta_d <- betadisper(ps_cap_r_jsd, sampledf_cap$DO..sat)
+permutest(beta_d)
+# SO4
+beta_so <- betadisper(ps_cap_r_jsd, sampledf_cap$SO4..µg.ml)
+permutest(beta_so)
+#mn
+beta_mn <- betadisper(ps_cap_r_jsd, sampledf_cap$X55.Mn.ng.ml)
+permutest(beta_mn)
+#Y
+beta_y <- betadisper(ps_cap_r_jsd, sampledf_cap$X89.Y.ng.ml)
+permutest(beta_y)
+```
+
+We can only reject the null hypothesis that site names have the same dispersions (variance). However, this might mean that adonis results can't be trusted for this category.
+
+Ok then, but what microbial groups are influenced by these variables? More ordination on the way.
+
+```{r taxa cap on sig metadata, message=FALSE, warning=FALSE}
+ps_cap_r_april = subset_samples(ps_cap_r, Month == "April")
+ps_cap_r_april_f = filter_taxa(ps_cap_r_april, function(x) sum(x) > .01, TRUE)
+ps_cap_r_august = subset_samples(ps_cap_r, Month == "August")
+ps_cap_r_august_f = filter_taxa(ps_cap_r_august, function(x) sum(x) > .01, TRUE)
+ps_cap_r_december = subset_samples(ps_cap_r, Month == "December")
+ps_cap_r_december_f = filter_taxa(ps_cap_r_december, function(x) sum(x) > .01, TRUE)
+#april
+CAP_ps_cap_r_april_f <- ordinate(ps_cap_r_april_f,
+                           method = "CAP",
+                           distance = "jsd",
+                           k=3, trymax=1e3, weighted=TRUE,
+                        formula = ~ Site.name + Month + Temp.C + DO..sat + Cl..µg.ml + SO4..µg.ml+ X55.Mn.ng.ml + X89.Y.ng.ml + X139.La.ng.ml)
+
+arrowmat_CAP_taxa_april <- vegan::scores(CAP_ps_cap_r_april_f, display = "bp")
+arrowmat_CAP_taxa_april<-arrowmat_CAP_taxa_april[!grepl("Site.name", rownames(arrowmat_CAP_taxa_april)),]
+arrowmat_CAP_taxa_april<-arrowmat_CAP_taxa_april[!grepl("Month", rownames(arrowmat_CAP_taxa_april)),]
+arrowdf_CAP_taxa_april <- data.frame(labels = rownames(arrowmat_CAP_taxa_april), arrowmat_CAP_taxa_april)
+arrow_map_CAP_taxa_april <- aes(xend = CAP1, yend = CAP2,
+                     x = 0, y = 0,
+                     shape = NULL, color = NULL,
+                     label = labels)
+label_map_CAP_taxa_april <- aes(x = 1.3 * CAP1, y = 1.3 * CAP2,
+                     shape = NULL, color = NULL,
+                     label = labels)
+arrowhead_CAP_taxa_april = arrow(length = unit(0.02, "npc"))
+
+april_phyla=nrow(as.data.frame(table(tax_table(ps_cap_r_april_f)[, "Phylum"], exclude = NULL)))
+
+CAP_april_taxa_sig_plot_a12 <- plot_ordination(ps_cap_r_april_f,
+                                    ordination = CAP_ps_cap_r_april_f, 
+                                    color = "Phylum",
+                                    axes = c(1,2), type="taxa") 
+ov_CAP_april_taxa_sig_plot_a12<-subset(CAP_april_taxa_sig_plot_a12$data,
+                           Phylum %in% c("Proteobacteria","Omnitrophica","Parcubacteria"))
+ov_CAP_april_taxa_sig_plot_a12$Phylum=as.character(ov_CAP_april_taxa_sig_plot_a12$Phylum)
+
+final_CAP_april_taxa_sig_plot_a12 = CAP_april_taxa_sig_plot_a12 +
+  geom_point(data = ov_CAP_april_taxa_sig_plot_a12,
+             aes(x=CAP1, y=CAP2, shape = Phylum, alpha = 0.6, size = 6)) +
+  geom_segment(mapping = arrow_map_CAP_taxa_april, size = .5, 
+               data = arrowdf_CAP_taxa_april, color = "black", arrow = arrowhead_CAP_taxa_april) +
+  geom_text(mapping = label_map_CAP_taxa_april, size = 5, fontface="bold",
+            data = arrowdf_CAP_taxa_april, show.legend = FALSE) +
+  scale_color_manual(values = colorRampPalette(brewer.pal(12, "Paired"))(april_phyla),
+                     na.value = "black") +
+  scale_fill_manual(values = colorRampPalette(brewer.pal(12, "Paired"))(april_phyla),
+                    na.value = "black")  +
+  guides(fill = guide_legend(nrow = april_phyla/2),
+         color = guide_legend(nrow= april_phyla/2),
+         size = FALSE,
+         shape =FALSE,
+         alpha = FALSE)
+
+#august
+CAP_ps_cap_r_august_f <- ordinate(ps_cap_r_august_f,
+                           method = "CAP",
+                           distance = "jsd",
+                           k=3, trymax=1e3, weighted=TRUE,
+                        formula = ~ Site.name + Month + Temp.C + DO..sat + Cl..µg.ml + SO4..µg.ml+ X55.Mn.ng.ml + X89.Y.ng.ml + X139.La.ng.ml)
+
+arrowmat_CAP_taxa_august <- vegan::scores(CAP_ps_cap_r_august_f, display = "bp")
+arrowmat_CAP_taxa_august<-arrowmat_CAP_taxa_august[!grepl("Site.name", rownames(arrowmat_CAP_taxa_august)),]
+arrowmat_CAP_taxa_august<-arrowmat_CAP_taxa_august[!grepl("Month", rownames(arrowmat_CAP_taxa_august)),]
+arrowdf_CAP_taxa_august <- data.frame(labels = rownames(arrowmat_CAP_taxa_august), arrowmat_CAP_taxa_august)
+arrow_map_CAP_taxa_august <- aes(xend = CAP1, yend = CAP2,
+                     x = 0, y = 0,
+                     shape = NULL, color = NULL,
+                     label = labels)
+label_map_CAP_taxa_august <- aes(x = 1.3 * CAP1, y = 1.3 * CAP2,
+                     shape = NULL, color = NULL,
+                     label = labels)
+arrowhead_CAP_taxa_august = arrow(length = unit(0.02, "npc"))
+
+august_phyla=nrow(as.data.frame(table(tax_table(ps_cap_r_august_f)[, "Phylum"], exclude = NULL)))
+
+CAP_august_taxa_sig_plot_a12 <- plot_ordination(ps_cap_r_august_f,
+                                    ordination = CAP_ps_cap_r_august_f, 
+                                    color = "Phylum",
+                                    axes = c(1,2), type="taxa")
+
+ov_CAP_august_taxa_sig_plot_a12<-subset(CAP_august_taxa_sig_plot_a12$data,
+                           Phylum %in% c("Proteobacteria","Omnitrophica","Parcubacteria"))
+ov_CAP_august_taxa_sig_plot_a12$Phylum=as.character(ov_CAP_august_taxa_sig_plot_a12$Phylum)
+
+final_CAP_august_taxa_sig_plot_a12 = CAP_august_taxa_sig_plot_a12 +
+  geom_point(data = ov_CAP_august_taxa_sig_plot_a12,
+             aes(x=CAP1, y=CAP2, shape = Phylum, alpha = 0.6, size = 6)) +
+  geom_segment(mapping = arrow_map_CAP_taxa_august, size = .5, 
+               data = arrowdf_CAP_taxa_august, color = "black", arrow = arrowhead_CAP_taxa_august) +
+  geom_text(mapping = label_map_CAP_taxa_august, size = 5, fontface="bold",
+            data = arrowdf_CAP_taxa_august, show.legend = FALSE) +
+  scale_color_manual(values = colorRampPalette(brewer.pal(12, "Paired"))(august_phyla),
+                     na.value = "black") +
+  scale_fill_manual(values = colorRampPalette(brewer.pal(12, "Paired"))(august_phyla),
+                    na.value = "black")  +
+  guides(fill = guide_legend(nrow = august_phyla/2),
+         color = guide_legend(nrow=august_phyla/2),
+         shape = guide_legend(title="Shape"),
+         size = FALSE,
+         alpha = FALSE)
+
+#december
+CAP_ps_cap_r_december_f <- ordinate(ps_cap_r_december_f,
+                           method = "CAP",
+                           distance = "jsd",
+                           k=3, trymax=1e3, weighted=TRUE,
+                        formula = ~ Site.name + Month + Temp.C + DO..sat + Cl..µg.ml + SO4..µg.ml+ X55.Mn.ng.ml + X89.Y.ng.ml + X139.La.ng.ml)
+
+arrowmat_CAP_taxa_december <- vegan::scores(CAP_ps_cap_r_december_f, display = "bp")
+arrowmat_CAP_taxa_december<-arrowmat_CAP_taxa_december[!grepl("Site.name", rownames(arrowmat_CAP_taxa_december)),]
+arrowmat_CAP_taxa_december<-arrowmat_CAP_taxa_december[!grepl("Month", rownames(arrowmat_CAP_taxa_december)),]
+arrowdf_CAP_taxa_december <- data.frame(labels = rownames(arrowmat_CAP_taxa_december), arrowmat_CAP_taxa_december)
+arrow_map_CAP_taxa_december <- aes(xend = CAP1, yend = CAP2,
+                     x = 0, y = 0,
+                     shape = NULL, color = NULL,
+                     label = labels)
+label_map_CAP_taxa_december <- aes(x = 1.3 * CAP1, y = 1.3 * CAP2,
+                     shape = NULL, color = NULL,
+                     label = labels)
+arrowhead_CAP_taxa_december = arrow(length = unit(0.02, "npc"))
+
+december_phyla=nrow(as.data.frame(table(tax_table(ps_cap_r_december_f)[, "Phylum"], exclude = NULL)))
+
+CAP_december_taxa_sig_plot_a12 <- plot_ordination(ps_cap_r_december_f,
+                                    ordination = CAP_ps_cap_r_december_f, 
+                                    color = "Phylum",
+                                    axes = c(1,2), type="taxa")
+ov_CAP_december_taxa_sig_plot_a12<-subset(CAP_december_taxa_sig_plot_a12$data,
+                           Phylum %in% c("Proteobacteria","Omnitrophica","Parcubacteria"))
+ov_CAP_december_taxa_sig_plot_a12$Phylum=as.character(ov_CAP_december_taxa_sig_plot_a12$Phylum)
+
+final_CAP_december_taxa_sig_plot_a12 = CAP_december_taxa_sig_plot_a12 +
+  geom_point(data = ov_CAP_december_taxa_sig_plot_a12,
+             aes(x=CAP1, y=CAP2, shape = Phylum, alpha = 0.6, size = 6)) +
+  geom_segment(mapping = arrow_map_CAP_taxa_december, size = .5, 
+               data = arrowdf_CAP_taxa_december, color = "black", arrow = arrowhead_CAP_taxa_december) +
+  geom_text(mapping = label_map_CAP_taxa_december, size = 5, fontface="bold",
+            data = arrowdf_CAP_taxa_december, show.legend = FALSE) +
+  scale_color_manual(values = colorRampPalette(brewer.pal(12, "Paired"))(december_phyla),
+                     na.value = "black") +
+  scale_fill_manual(values = colorRampPalette(brewer.pal(12, "Paired"))(december_phyla),
+                    na.value = "black")  +
+  guides(fill = guide_legend(nrow = december_phyla/2),
+         color = guide_legend(nrow= december_phyla/2),
+         size = FALSE,
+         shape =FALSE,
+         alpha = FALSE)
+
+ps_cap_r_month<-plot_grid(final_CAP_april_taxa_sig_plot_a12, final_CAP_august_taxa_sig_plot_a12, final_CAP_december_taxa_sig_plot_a12,
+                               labels=c("April","August","December"), align = 'v', ncol = 1,
+                               hjust = -1, vjust = -1)
+
+```
+```{r, fig.height=15, fig.width=14}
+ps_cap_r_month
+```
