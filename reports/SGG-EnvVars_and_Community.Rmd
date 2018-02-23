@@ -77,7 +77,9 @@ temp_table.plot<-ggplot(metadata,
         axis.title.y = element_text(size=14),
         axis.text.x = element_blank(),
         axis.text.y = element_text(size=12),
-        legend.position = "none") +
+        legend.position = "bottom",
+        legend.title = element_text(face = "bold"),
+        legend.background = element_rect(fill="gray95", size=.5, linetype="dotted")) +
   annotate("text", "Mountain Gate", 14, vjust = -1, hjust=.45, size= 4,
            label = "Average mine water temperature (Farr et al, 2016)") +
   labs(y=expression(paste("Temperature (",degree,"C)")))
@@ -164,10 +166,81 @@ ec.plot<-ggplot(metadata,
   labs(y=expression(paste("EC (",mu,"S.cm"^{-1},")")))
 ```
 ```{r message=FALSE, warning=FALSE, fig.height=11, fig.width=10}
-plot_grid(temp_table.plot, do.plot, so4.plot, pH.plot, ec.plot, ncol = 1, align='v', rel_heights = c(1,1,1,1,1.75))
+plot_grid(temp_table.plot, do.plot, so4.plot, pH.plot, ec.plot, ncol = 1, align='v', rel_heights = c(1.75,1,1,1,1.75))
 ```
 
-Coolsies, but these are only 5 of them. How does the overal picture look?
+Does the SO4 data coincide with previous Coal Authority data?
+
+```{r so4 sgg ca}
+swales_ca_metadata<-read.csv("/media/andre/B2F8C9A0F8C962E9/SGG_16S_analysis/SGG_16S_metadata/R_previous_BGS_chem_data_SWales.csv", header=TRUE)
+swales_ca_metadata$Site = factor(swales_ca_metadata$Site, 
+                                          levels = c("Blaenavon","Cefn Hengoed","Mountain Gate","Taff Bargoed",
+                                                     "Glyncastle","Dinas","Ynysarwed","Celynen North","Morlais",
+                                                     "Lindsay","Six Bells","Crumlin Navigation","Taffs Well"))
+swales_ca_metadata$Month = factor(swales_ca_metadata$Month, 
+                                          levels = c("January","February","March","April","May","June","July",
+                                                     "August","September","October","November","December"))
+#Sulfate from CA
+swales_ca_metadata_plot<-ggplot(swales_ca_metadata, 
+                        aes(x=Site, y=`SO4.ug.mL`, fill=Month)) +
+  geom_point(aes(fill=Month, color=Month),
+             size=2,
+             position = position_dodge(width=0.5)) +
+  facet_wrap(~Year, ncol = 1) +
+  theme(axis.title.x=element_blank(),
+        axis.title.y = element_text(size=14),
+        axis.text.x = element_text(angle = 35, hjust = 1, vjust = 1),
+        axis.text.y = element_text(size=12),
+        legend.position = "bottom",
+        legend.justification = "center",
+        legend.text=element_text(size=7)) +
+  guides(fill = guide_legend(nrow = 1),
+         color = guide_legend(nrow = 1)) +
+  scale_y_continuous(expand = c(0,0)) +
+  labs(y=expression(paste("SO"[4]^{-2},"(",mu,"g.mL"^{-1},")")))
+
+swales_ca_metadata_2016<-subset(swales_ca_metadata, 
+                                                  Year %in% c("2016"))
+
+swales_ca_metadata_2016_plot<-ggplot(swales_ca_metadata_2016, 
+                        aes(x=Site, y=`SO4.ug.mL`, fill=Month)) +
+  geom_point(aes(fill=Month, color=Month),
+             size=2,
+             position = position_dodge(width=0.5)) +
+  theme(axis.title.x=element_blank(),
+        axis.title.y = element_text(size=14),
+        axis.text.x = element_text(angle = 25, hjust = 1, vjust = 1, size= 12),
+        axis.text.y = element_text(size=12),
+        legend.position = "bottom",
+        legend.justification = "center",
+        legend.text=element_text(size=7)) +
+  guides(fill = guide_legend(nrow = 1),
+         color = guide_legend(nrow = 1)) +
+  scale_y_continuous(breaks = c(0,250,500,750,1000)) +
+  labs(y=expression(paste("SO"[4]^{-2},"(",mu,"g.mL"^{-1},")"))) +
+  ggtitle("CA data - 2016")
+
+#quick prep of our own data
+so4.plot.cowplot=so4.plot + 
+  theme(legend.position = "bottom",
+        legend.justification = "center",
+        axis.text.x = element_text(angle = 25, hjust = 1, size= 12)) +
+  scale_y_continuous(breaks = c(0,250,500,750,1000,1250)) +
+  ggtitle("SGG data - 2016")
+```
+
+```{r message=FALSE, warning=FALSE, fig.height=10, fig.width=10}
+swales_ca_metadata_plot + ggtitle("Sulfate through the years - CA")
+```
+
+How does CA's 2016 data compare with ours though?
+
+```{r message=FALSE, warning=FALSE, fig.height=8, fig.width=10}
+plot_grid(swales_ca_metadata_2016_plot, so4.plot.cowplot,
+          align = 'v', ncol = 1)
+```
+
+Coolsies, but how does the overal picture look regarding how variables relate to one another?
 
 ```{r metadata cors}
 metadata_df=as(sample_data(ps.b.r),"data.frame")
@@ -381,7 +454,8 @@ final_CAP_april_taxa_sig_plot_a12 = CAP_april_taxa_sig_plot_a12 +
          color = guide_legend(nrow= april_phyla/2),
          size = FALSE,
          shape =FALSE,
-         alpha = FALSE)
+         alpha = FALSE) +
+  labs(subtitle = "Using all SVs above 1% relative abundance")
 
 #august
 CAP_ps_cap_r_august_f <- ordinate(ps_cap_r_august_f,
@@ -480,9 +554,9 @@ final_CAP_december_taxa_sig_plot_a12 = CAP_december_taxa_sig_plot_a12 +
 
 ps_cap_r_month<-plot_grid(final_CAP_april_taxa_sig_plot_a12, final_CAP_august_taxa_sig_plot_a12, final_CAP_december_taxa_sig_plot_a12,
                                labels=c("April","August","December"), align = 'v', ncol = 1,
-                               hjust = -1, vjust = -1)
+                               hjust = -1, vjust = -1, axis = 'l')
 
 ```
-```{r, fig.height=15, fig.width=14}
+```{r, fig.height=17, fig.width=14}
 ps_cap_r_month
 ```
