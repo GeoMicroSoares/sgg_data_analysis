@@ -29,6 +29,7 @@ library(cowplot)
 library(plotly)
 library(lemon)
 library(GGally)
+library(randomcoloR)
 ```
 
 ```{r load SV data, echo=FALSE}
@@ -52,7 +53,7 @@ ps.b = subset_taxa(ps.b, Kingdom %in% c("Archaea", "Bacteria"))
 ps.b.r <-  transform_sample_counts(ps.b, function(x) {x/sum(x)} ) 
 ```
 
-##1 - Visualizing SGG metadata
+##**1 -** Visualizing SGG metadata
 
 ```{r main metadata}
 sample_data(ps.b.r)$Site.name = factor(sample_data(ps.b.r)$Site.name, 
@@ -167,7 +168,7 @@ ec.plot<-ggplot(metadata,
 plot_grid(temp_table.plot, do.plot, so4.plot, pH.plot, ec.plot, ncol = 1, align='v', rel_heights = c(1.75,1,1,1,1.75))
 ```
 
-And does SO4 coincide 'more or less' negatively correlate with DO just to make sure?
+And does sulfate 'more or less' negatively correlate with DO just to make sure?
 
 ```{r}
 do.so4.plot<-ggplot(metadata, 
@@ -266,11 +267,11 @@ august_corr
 december_corr
 ```
 
-*Pearson* assumes linearity between variables as well as normal distributions of data and is sensible to transformation. *Spearman* is a nonparametric measure of rank correlation as *Kendall* is, meaning they don't care about transformations. *Kendall* meaures strength of dependence between two variables. *Spearman* does not make assumptions of data distribution and measures degree of association between two variables.
+**Pearson** assumes linearity between variables as well as normal distributions of data and is sensible to transformation. **Spearman** is a nonparametric measure of rank correlation as **Kendall** is, meaning they don't care about transformations. **Kendall** meaures strength of dependence between two variables. **Spearman** does not make assumptions of data distribution and measures degree of association between two variables.
 
 There's clearly a lot of variation, but definitely there's loads more to learn on how these variables relate.
 
-##2 - Does SGG Sulfate data coincide with Coal Authority data from previous years?
+##**2 -** Does SGG Sulfate data coincide with Coal Authority data from previous years?
 
 ```{r so4 sgg ca}
 swales_ca_metadata<-read.csv("/media/andre/B2F8C9A0F8C962E9/SGG_16S_analysis/SGG_16S_metadata/R_previous_BGS_chem_data_SWales.csv", header=TRUE)
@@ -297,7 +298,8 @@ swales_ca_metadata_plot<-ggplot(swales_ca_metadata,
         legend.text=element_text(size=7)) +
   guides(fill = guide_legend(nrow = 1),
          color = guide_legend(nrow = 1)) +
-  scale_y_continuous(expand = c(0,0)) +
+  scale_y_continuous(expand = c(0,0),
+                     breaks = c(0,250,500,750,1000,1250)) +
   labs(y=expression(paste("SO"[4]^{-2},"(",mu,"g.mL"^{-1},")")))
 
 swales_ca_metadata_2016<-subset(swales_ca_metadata, 
@@ -341,7 +343,7 @@ plot_grid(swales_ca_metadata_2016_plot, so4.plot.cowplot,
           align = 'v', ncol = 1)
 ```
 
-##3 -According to CA data, how did iron do across our sites in 2016?
+##**3 -** According to CA data, how did iron do across our sites in 2016?
 
 ```{r}
 iron_theme=theme(
@@ -349,7 +351,7 @@ iron_theme=theme(
         axis.text.x = element_text(angle = 25, hjust = 1, vjust = 1, size= 12),
         axis.text.y = element_text(size=8),
         axis.title.y = element_text(angle = 0, size=10),
-        legend.title = element_text(size=9, face = "bold"))
+        legend.title = element_text(size=8, face = "bold"))
 
 KONEFE_Fe_mgL_plot<-ggplot(swales_ca_metadata_2016, 
                         aes(x=Site, y=`KONEFE_Fe_mgL`, fill=Month)) +
@@ -362,7 +364,7 @@ KONEFE_Fe_mgL_plot<-ggplot(swales_ca_metadata_2016,
   iron_theme +
   theme(legend.position = "bottom",
         legend.justification = "left",
-        legend.text=element_text(size=9),
+        legend.text=element_text(size=8),
         axis.text.x = element_blank())
 
 D_Fe_mgL_plot<-ggplot(swales_ca_metadata_2016, 
@@ -388,7 +390,7 @@ ICPWATVAR_Fe_mgL_plot<-ggplot(swales_ca_metadata_2016,
   iron_theme +
   theme(legend.position = "bottom",
         legend.justification = "left",
-        legend.text=element_text(size=9),
+        legend.text=element_text(size=8),
         axis.text.x = element_blank())
 
 Fe2_mgL_plot<-ggplot(swales_ca_metadata_2016, 
@@ -411,7 +413,7 @@ plot_grid(KONEFE_Fe_mgL_plot, D_Fe_mgL_plot, ICPWATVAR_Fe_mgL_plot, Fe2_mgL_plot
 
 So, in 2016, while most of the other sites were close to 0, it seems a LOT of iron was being detected in Ynysarwed. Are there taxonomical evidences of more iron users there? Not really as seen on ```SGG-GenTaxonomy.html```.
 
-##4 - How do environmental variables relate to microbial community structure in this dataset?
+##**4 -** How do environmental variables relate to microbial community structure in this dataset?
 
 An ```adonis``` test tests "how is variation attributed to different experimental" variables, using distance matrices. It analyses how variables can be sources of variation of distance matrices and depends on fitting linear models to distance matrices. AKA PERMANOVA.
 
@@ -465,8 +467,12 @@ order_jsd<-labels(ps_cap_r_jsd)
 sampledf_cap_norm_noNA_f_ord<-sampledf_cap_norm_noNA_f[match(order_jsd, sampledf_cap_norm_noNA_f$Sample_Code),]
 rownames(sampledf_cap_norm_noNA_f_ord) <- sampledf_cap_norm_noNA_f_ord$Sample_Code
 
-adonis(ps_cap_r_jsd ~ Site.ID + Temp.C + Month + EC.uS.cm + DO..sat + K.µg.ml + Na.µg.ml + Cl..µg.ml + SO4..µg.ml + X6.Li.ng.ml + X7.Li.ng.ml + X7.Li..He..ng.ml + X11.B.ng.ml + X45.Sc.ng.ml + X55.Mn.ng.ml + X59.Co.ng.ml + X60.Ni.ng.ml + X69.Ga.ng.ml + X75.As..He..ng.ml + X78.Se.ng.ml + X85.Rb.ng.ml + X88.Sr.ng.ml + X89.Y.ng.ml + X125.Te.ng.ml + X133.Cs.ng.ml + X135.Ba.ng.ml + X139.La.ng.ml + X146.Nd.ng.ml + X153.Eu.ng.ml + X166.Er.ng.ml + X175.Lu.ng.ml + X238.U.ng.ml, 
+norm_adonis = adonis(ps_cap_r_jsd ~ Site.ID + Temp.C + Month + EC.uS.cm + DO..sat + K.µg.ml + Na.µg.ml + Cl..µg.ml + SO4..µg.ml + X6.Li.ng.ml + X7.Li.ng.ml + X7.Li..He..ng.ml + X11.B.ng.ml + X45.Sc.ng.ml + X55.Mn.ng.ml + X59.Co.ng.ml + X60.Ni.ng.ml + X69.Ga.ng.ml + X75.As..He..ng.ml + X78.Se.ng.ml + X85.Rb.ng.ml + X88.Sr.ng.ml + X89.Y.ng.ml + X125.Te.ng.ml + X133.Cs.ng.ml + X135.Ba.ng.ml + X139.La.ng.ml + X146.Nd.ng.ml + X153.Eu.ng.ml + X166.Er.ng.ml + X175.Lu.ng.ml + X238.U.ng.ml, 
        data = sampledf_cap_norm_noNA_f_ord, permutations=1e3)
+
+#Choose the 5 variables explaining the most variation
+norm_adonis_df=as(norm_adonis$aov.tab, "data.frame")
+head(norm_adonis_df[order(-norm_adonis_df$R2),], n=7)
 ```
 
 It does! Only Temperature and EC significantly explain more than 10% of variation. Also, loads more variables seem to significantly correlate to microbial community structure!
@@ -478,9 +484,7 @@ Homogeneity of dispersion test for significant categories:
 *Null hypothesis*: tested metadata categories have the same dispersions (variance).
 ```betadisper``` calculates average distances of samples to group centroids (from metadata categories)
 ```permutest``` calculates ANOVAS on average distances from betadisper() to test if one or more groups is more variable than others
-
 <!-- ### CAP, first with the non-normalised metadata. -->
-
 ```{r cap on sig metadata, eval=FALSE, message=FALSE, warning=FALSE, include=FALSE}
 #CAP
 CAP_ps_cap_r <- ordinate(ps_cap_r,
@@ -552,7 +556,6 @@ ps.b.r.CAP_sig.plot
 ```
 
 <!-- So, as previously seen, two major groups composed of high-S and high-Fe samples. It seems DO and SO4 drive community structure in opposite ways. Also, temperature seems to play a role in defining high-S sample groups. -->
-
 <!-- Is this ordination's goodness of fit better than random models? i.e. are the constraints in this model significant? -->
 
 ```{r eval=FALSE, include=FALSE}
@@ -560,13 +563,10 @@ anova(CAP_ps_cap_r, perm=1e3)
 ```
 
 <!-- Do these significant metadata variables have the same dispersions? -->
-
 <!-- * Homogeneity of dispersion test for significant categories: -->
-
 <!-- ***Null hypothesis**: tested metadata categories have the same dispersions (variance). -->
 <!-- ```betadisper``` calculates average distances of samples to group centroids (from metadata categories) -->
 <!-- ```permutest``` calculates ANOVAS on average distances from betadisper() to test if one or more groups is more variable than others -->
-
 ```{r betadisper, echo=TRUE}
 #Temperature
 beta_t <- betadisper(ps_cap_r_jsd, sampledf_cap_norm_noNA_f_ord$Temp.C)
@@ -743,6 +743,8 @@ ps_cap_r_month
 
 ### CAP with normalised metadata.
 
+Using all significant variables for the formula, plotting only the ones explaining 5% or more variation.
+
 ```{r cap on sig norm metadata, message=FALSE, warning=FALSE}
 #remove rows 73,74,75 (Taff's Well pumped samples) from norm_metadata and create new phyloseq object with normalised metadata
 remove = c("73","74","75")
@@ -773,18 +775,17 @@ CAP_norm_sig_plot_a12 <- plot_ordination(ps_cap_r_norm,
   theme(legend.position = "none")
 
 arrowmat_CAP_norm <- vegan::scores(CAP_ps_cap_r_norm, display = "bp")
-arrowmat_CAP_norm<-arrowmat_CAP_norm[!grepl("Site.name", rownames(arrowmat_CAP_norm)),]
-arrowmat_CAP_norm<-arrowmat_CAP_norm[!grepl("Month_cat", rownames(arrowmat_CAP_norm)),]
+arrowmat_CAP_norm<-subset(arrowmat_CAP_norm,
+                           rownames(arrowmat_CAP_norm) %in% c("Temp.C","EC.uS.cm","Site.ID","K.µg.ml","Na.µg.ml"))
 arrowdf_CAP_norm <- data.frame(labels = rownames(arrowmat_CAP_norm), arrowmat_CAP_norm)
-rownames(arrowdf_CAP_norm) <- c("Site ID","Temperature","EC","DO","K","Na","Cl","SO4","6_Li","7_Li","7_Li_He",
-                                               "B","Sc","Mn","Co","Ni","Ga","As","Sr","Y","Cs","La","U")
-arrowdf_CAP_norm$labels <- c("Site ID","Temperature","EC","DO","K","Na","Cl","SO4","6_Li","7_Li","7_Li_He",
-                                               "B","Sc","Mn","Co","Ni","Ga","As","Sr","Y","Cs","La","U")
+rownames(arrowdf_CAP_norm) <- c("Site ID","Temperature","EC","K","Na")
+arrowdf_CAP_norm$labels <- c("Site ID","Temperature","EC","K","Na")
+
 arrow_map_CAP_norm <- aes(xend = CAP1, yend = CAP2,
                      x = 0, y = 0,
                      shape = NULL, color = NULL,
                      label = labels)
-label_map_CAP_norm <- aes(x = 1.1 * CAP1, y = 1.1 * CAP2,
+label_map_CAP_norm <- aes(x = 1.1 * CAP1, y = 1.3 * CAP2,
                      shape = NULL, color = NULL,
                      label = labels)
 arrowhead_CAP_norm = arrow(length = unit(0.02, "npc"))
@@ -796,18 +797,17 @@ CAP_norm_sig_plot_a12 = CAP_norm_sig_plot_a12 +
             data = arrowdf_CAP_norm, show.legend = FALSE)
 
 arrowmat_CAP_norm_13 <- vegan::scores(CAP_ps_cap_r_norm, display = "bp", choices=c(1,3))
-arrowmat_CAP_norm_13<-arrowmat_CAP_norm_13[!grepl("Site.name", rownames(arrowmat_CAP_norm_13)),]
-arrowmat_CAP_norm_13<-arrowmat_CAP_norm_13[!grepl("Month_cat", rownames(arrowmat_CAP_norm_13)),]
+arrowmat_CAP_norm_13<-subset(arrowmat_CAP_norm_13,
+                           rownames(arrowmat_CAP_norm_13) %in% c("Temp.C","EC.uS.cm","Site.ID","K.µg.ml","Na.µg.ml"))
 arrowdf_CAP_norm_13 <- data.frame(labels = rownames(arrowmat_CAP_norm_13), arrowmat_CAP_norm_13)
-rownames(arrowdf_CAP_norm_13) <- c("Site ID","Temperature","EC","DO","K","Na","Cl","SO4","6_Li","7_Li","7_Li_He",
-                                               "B","Sc","Mn","Co","Ni","Ga","As","Sr","Y","Cs","La","U")
-arrowdf_CAP_norm_13$labels <- c("Site ID","Temperature","EC","DO","K","Na","Cl","SO4","6_Li","7_Li","7_Li_He",
-                                               "B","Sc","Mn","Co","Ni","Ga","As","Sr","Y","Cs","La","U")
+rownames(arrowdf_CAP_norm_13) <- c("Site ID","Temperature","EC","K","Na")
+arrowdf_CAP_norm_13$labels <- c("Site ID","Temperature","EC","K","Na")
+
 arrow_map_CAP_norm_13 <- aes(xend = CAP1, yend = CAP3,
                         x = 0, y = 0,
                         shape = NULL, color = NULL,
                         label = labels)
-label_map_CAP_norm_13 <- aes(x = 1.1 * CAP1, y = 1.1 * CAP3,
+label_map_CAP_norm_13 <- aes(x = 1.1 * CAP1, y = 1.3 * CAP3,
                         shape = NULL, color = NULL,
                         label = labels)
 arrowhead_CAP_norm_13 = arrow(length = unit(0.02, "npc"))
@@ -832,11 +832,9 @@ ps.b.r.CAP_norm_sig.plot<-plot_grid(CAP_norm_sig_plot_a12, CAP_norm_sig_plot_a13
 ps.b.r.CAP_norm_sig.plot
 ```
 
-So, as previously seen, two major groups composed of high-S and high-Fe samples. It *seems* DO and SO4 drive community structure in opposite ways. Also, temperature seems to play a role in defining high-S sample groups.
+So, as previously seen, two major groups composed of high-S and high-Fe samples. Temperature seems to play a role in defining high-S sample groups, but this changes throughout the year.
 
-*MORE SHIT HERE*
-
-Is this ordination's goodness of fit better than random models? i.e. are the constraints in this model significant?
+Is this ordination's goodness of fit better than random models? *i.e.* are the constraints in this model significant?
 
 ```{r}
 anova(CAP_ps_cap_r_norm, perm=1e3)
@@ -872,11 +870,12 @@ CAP_norm_ps_cap_r_norm_december_f <- ordinate(ps_cap_r_norm_december_f,
 
 #april
 arrowmat_CAP_norm_taxa_april <- vegan::scores(CAP_norm_ps_cap_r_norm_april_f, display = "bp")
-arrowmat_CAP_norm_taxa_april<-arrowmat_CAP_norm_taxa_april[!grepl("Site.name", rownames(arrowmat_CAP_norm_taxa_april)),]
-arrowmat_CAP_norm_taxa_april<-arrowmat_CAP_norm_taxa_april[!grepl("Month_cat", rownames(arrowmat_CAP_norm_taxa_april)),]
-rownames(arrowmat_CAP_norm_taxa_april) <- c("Site ID","Temperature","EC","DO","K","Na","Cl","SO4","6_Li","7_Li","7_Li_He",
-                                               "B","Sc","Mn","Co","Ni","Ga","As","Sr","Y","Cs","La","U")
+arrowmat_CAP_norm_taxa_april<-subset(arrowmat_CAP_norm_taxa_april,
+                           rownames(arrowmat_CAP_norm_taxa_april) %in% c("Temp.C","EC.uS.cm","Site.ID","K.µg.ml","Na.µg.ml"))
 arrowdf_CAP_norm_taxa_april <- data.frame(labels = rownames(arrowmat_CAP_norm_taxa_april), arrowmat_CAP_norm_taxa_april)
+rownames(arrowmat_CAP_norm_taxa_april) <- c("Site ID","Temperature","EC","K","Na")
+rownames(arrowdf_CAP_norm_taxa_april) <- c("Site ID","Temperature","EC","K","Na")
+arrowdf_CAP_norm_taxa_april$labels <- c("Site ID","Temperature","EC","K","Na")
 arrow_map_CAP_norm_taxa_april <- aes(xend = CAP1, yend = CAP2,
                      x = 0, y = 0,
                      shape = NULL, color = NULL,
@@ -899,11 +898,9 @@ CAP_norm_april_taxa_sig_plot_a12 <- plot_ordination(ps_cap_r_norm_april_f,
                                     axes = c(1,2), type="taxa", justDF = TRUE) 
 CAP_norm_april_taxa_sig_plot_a12$Phylum=as.character(CAP_norm_april_taxa_sig_plot_a12$Phylum)
 CAP_norm_april_taxa_sig_plot_a12$Class=as.character(CAP_norm_april_taxa_sig_plot_a12$Class)
-
 ov_CAP_norm_april_taxa_sig_plot_a12<-subset(CAP_norm_april_taxa_sig_plot_a12,
                            Phylum != "Proteobacteria")
 ov_CAP_norm_april_taxa_sig_plot_a12$Phylum=as.character(ov_CAP_norm_april_taxa_sig_plot_a12$Phylum)
-
 class_ov_CAP_norm_april_taxa_sig_plot_a12<-subset(CAP_norm_april_taxa_sig_plot_a12,
                            Class %in% c("Epsilonproteobacteria","Betaproteobacteria","Gammaproteobacteria","Deltaproteobacteria"))
 class_ov_CAP_norm_april_taxa_sig_plot_a12$Class=as.character(class_ov_CAP_norm_april_taxa_sig_plot_a12$Class)
@@ -923,12 +920,21 @@ final_CAP_norm_april_taxa_sig_plot_a12 = ggplot(data=CAP_norm_april_taxa_sig_plo
   geom_segment(mapping = arrow_map_CAP_norm_taxa_april, size = .5, 
                data = arrowdf_CAP_norm_taxa_april, 
                color = "black", arrow = arrowhead_CAP_norm_taxa_april) +
-  geom_text(mapping = label_map_CAP_norm_taxa_april, size = 5, fontface="bold",
-            data = arrowdf_CAP_norm_taxa_april, show.legend = FALSE, 
-            check_overlap = TRUE) +
-  scale_color_manual(values = colorRampPalette(brewer.pal(12, "Paired"))(25),
+  geom_text(mapping = label_map_CAP_norm_taxa_april, 
+            data = subset(arrowdf_CAP_norm_taxa_april,
+                          labels %in% c("Site ID", "Temperature","K","Na")),
+            size = 5, fontface="bold",
+            hjust = 0,
+            show.legend = FALSE) +
+  geom_text(mapping = label_map_CAP_norm_taxa_april, 
+            data = subset(arrowdf_CAP_norm_taxa_april,
+                          labels %in% c("EC")),
+            size = 5, fontface="bold",
+            show.legend = FALSE,
+            nudge_y = 0.05) +
+  scale_color_manual(values=distinctColorPalette(length(unique(CAP_norm_april_taxa_sig_plot_a12$Phylum))),
                      na.value = "black") +
-  scale_fill_manual(values = colorRampPalette(brewer.pal(12, "Paired"))(25),
+  scale_fill_manual(values=distinctColorPalette(length(unique(CAP_norm_april_taxa_sig_plot_a12$Phylum))),
                     na.value = "black")  +
   scale_shape_manual(values=c(15, 17, 18, 4)) +
   guides(fill = FALSE,
@@ -949,11 +955,12 @@ final_CAP_norm_april_taxa_sig_plot_a12 = ggplot(data=CAP_norm_april_taxa_sig_plo
 
 #august
 arrowmat_CAP_norm_taxa_august <- vegan::scores(CAP_norm_ps_cap_r_norm_august_f, display = "bp")
-arrowmat_CAP_norm_taxa_august<-arrowmat_CAP_norm_taxa_august[!grepl("Site.name", rownames(arrowmat_CAP_norm_taxa_august)),]
-arrowmat_CAP_norm_taxa_august<-arrowmat_CAP_norm_taxa_august[!grepl("Month_cat", rownames(arrowmat_CAP_norm_taxa_august)),]
-rownames(arrowmat_CAP_norm_taxa_august) <- c("Site ID","Temperature","EC","DO","K","Na","Cl","SO4","6_Li","7_Li","7_Li_He",
-                                               "B","Sc","Mn","Co","Ni","Ga","As","Sr","Y","Cs","La","U")
+arrowmat_CAP_norm_taxa_august<-subset(arrowmat_CAP_norm_taxa_august,
+                           rownames(arrowmat_CAP_norm_taxa_august) %in% c("Temp.C","EC.uS.cm","Site.ID","K.µg.ml","Na.µg.ml"))
 arrowdf_CAP_norm_taxa_august <- data.frame(labels = rownames(arrowmat_CAP_norm_taxa_august), arrowmat_CAP_norm_taxa_august)
+rownames(arrowmat_CAP_norm_taxa_august) <- c("Site ID","Temperature","EC","K","Na")
+rownames(arrowdf_CAP_norm_taxa_august) <- c("Site ID","Temperature","EC","K","Na")
+arrowdf_CAP_norm_taxa_august$labels <- c("Site ID","Temperature","EC","K","Na")
 arrow_map_CAP_norm_taxa_august <- aes(xend = CAP1, yend = CAP2,
                      x = 0, y = 0,
                      shape = NULL, color = NULL,
@@ -976,11 +983,9 @@ CAP_norm_august_taxa_sig_plot_a12 <- plot_ordination(ps_cap_r_norm_august_f,
                                     axes = c(1,2), type="taxa", justDF = TRUE) 
 CAP_norm_august_taxa_sig_plot_a12$Phylum=as.character(CAP_norm_august_taxa_sig_plot_a12$Phylum)
 CAP_norm_august_taxa_sig_plot_a12$Class=as.character(CAP_norm_august_taxa_sig_plot_a12$Class)
-
 ov_CAP_norm_august_taxa_sig_plot_a12<-subset(CAP_norm_august_taxa_sig_plot_a12,
                            Phylum != "Proteobacteria")
 ov_CAP_norm_august_taxa_sig_plot_a12$Phylum=as.character(ov_CAP_norm_august_taxa_sig_plot_a12$Phylum)
-
 class_ov_CAP_norm_august_taxa_sig_plot_a12<-subset(CAP_norm_august_taxa_sig_plot_a12,
                            Class %in% c("Epsilonproteobacteria","Betaproteobacteria","Gammaproteobacteria","Deltaproteobacteria"))
 class_ov_CAP_norm_august_taxa_sig_plot_a12$Class=as.character(class_ov_CAP_norm_august_taxa_sig_plot_a12$Class)
@@ -1000,12 +1005,21 @@ final_CAP_norm_august_taxa_sig_plot_a12 = ggplot(data=CAP_norm_august_taxa_sig_p
   geom_segment(mapping = arrow_map_CAP_norm_taxa_august, size = .5, 
                data = arrowdf_CAP_norm_taxa_august, 
                color = "black", arrow = arrowhead_CAP_norm_taxa_august) +
-  geom_text(mapping = label_map_CAP_norm_taxa_august, size = 5, fontface="bold",
-            data = arrowdf_CAP_norm_taxa_august, show.legend = FALSE, 
-            check_overlap = TRUE) +
-  scale_color_manual(values = colorRampPalette(brewer.pal(12, "Paired"))(23),
+  geom_text(mapping = label_map_CAP_norm_taxa_august, 
+            data = subset(arrowdf_CAP_norm_taxa_august,
+                          labels %in% c("Site ID", "Temperature","EC","Na")),
+            size = 5, fontface="bold",
+            hjust = 0,
+            show.legend = FALSE) +
+  geom_text(mapping = label_map_CAP_norm_taxa_august, 
+            data = subset(arrowdf_CAP_norm_taxa_august,
+                          labels %in% c("K")),
+            size = 5, fontface="bold",
+            show.legend = FALSE,
+            nudge_y = 0.05) +
+  scale_color_manual(values=distinctColorPalette(length(unique(CAP_norm_august_taxa_sig_plot_a12$Phylum))),
                      na.value = "black") +
-  scale_fill_manual(values = colorRampPalette(brewer.pal(12, "Paired"))(23),
+  scale_fill_manual(values=distinctColorPalette(length(unique(CAP_norm_august_taxa_sig_plot_a12$Phylum))),
                     na.value = "black")  +
   scale_shape_manual(values=c(15, 17, 18, 4)) +
   guides(fill = FALSE,
@@ -1025,11 +1039,12 @@ final_CAP_norm_august_taxa_sig_plot_a12 = ggplot(data=CAP_norm_august_taxa_sig_p
 
 #december
 arrowmat_CAP_norm_taxa_december <- vegan::scores(CAP_norm_ps_cap_r_norm_december_f, display = "bp")
-arrowmat_CAP_norm_taxa_december<-arrowmat_CAP_norm_taxa_december[!grepl("Site.name", rownames(arrowmat_CAP_norm_taxa_december)),]
-arrowmat_CAP_norm_taxa_december<-arrowmat_CAP_norm_taxa_december[!grepl("Month_cat", rownames(arrowmat_CAP_norm_taxa_december)),]
-rownames(arrowmat_CAP_norm_taxa_december) <- c("Site ID","Temperature","EC","DO","K","Na","Cl","SO4","6_Li","7_Li","7_Li_He",
-                                               "B","Sc","Mn","Co","Ni","Ga","As","Sr","Y","Cs","La","U")
+arrowmat_CAP_norm_taxa_december<-subset(arrowmat_CAP_norm_taxa_december,
+                           rownames(arrowmat_CAP_norm_taxa_december) %in% c("Temp.C","EC.uS.cm","Site.ID","K.µg.ml","Na.µg.ml"))
 arrowdf_CAP_norm_taxa_december <- data.frame(labels = rownames(arrowmat_CAP_norm_taxa_december), arrowmat_CAP_norm_taxa_december)
+rownames(arrowmat_CAP_norm_taxa_december) <- c("Site ID","Temperature","EC","K","Na")
+rownames(arrowdf_CAP_norm_taxa_december) <- c("Site ID","Temperature","EC","K","Na")
+arrowdf_CAP_norm_taxa_december$labels <- c("Site ID","Temperature","EC","K","Na")
 arrow_map_CAP_norm_taxa_december <- aes(xend = CAP1, yend = CAP2,
                      x = 0, y = 0,
                      shape = NULL, color = NULL,
@@ -1052,11 +1067,9 @@ CAP_norm_december_taxa_sig_plot_a12 <- plot_ordination(ps_cap_r_norm_december_f,
                                     axes = c(1,2), type="taxa", justDF = TRUE) 
 CAP_norm_december_taxa_sig_plot_a12$Phylum=as.character(CAP_norm_december_taxa_sig_plot_a12$Phylum)
 CAP_norm_december_taxa_sig_plot_a12$Class=as.character(CAP_norm_december_taxa_sig_plot_a12$Class)
-
 ov_CAP_norm_december_taxa_sig_plot_a12<-subset(CAP_norm_december_taxa_sig_plot_a12,
                            Phylum != "Proteobacteria")
 ov_CAP_norm_december_taxa_sig_plot_a12$Phylum=as.character(ov_CAP_norm_december_taxa_sig_plot_a12$Phylum)
-
 class_ov_CAP_norm_december_taxa_sig_plot_a12<-subset(CAP_norm_december_taxa_sig_plot_a12,
                            Class %in% c("Epsilonproteobacteria","Betaproteobacteria","Gammaproteobacteria","Deltaproteobacteria"))
 class_ov_CAP_norm_december_taxa_sig_plot_a12$Class=as.character(class_ov_CAP_norm_december_taxa_sig_plot_a12$Class)
@@ -1076,12 +1089,13 @@ final_CAP_norm_december_taxa_sig_plot_a12 = ggplot(data=CAP_norm_december_taxa_s
   geom_segment(mapping = arrow_map_CAP_norm_taxa_december, size = .5, 
                data = arrowdf_CAP_norm_taxa_december, 
                color = "black", arrow = arrowhead_CAP_norm_taxa_december) +
-  geom_text(mapping = label_map_CAP_norm_taxa_december, size = 5, fontface="bold",
-            data = arrowdf_CAP_norm_taxa_december, show.legend = FALSE, 
-            check_overlap = TRUE) +
-  scale_color_manual(values = colorRampPalette(brewer.pal(12, "Paired"))(27),
+  geom_text(mapping = label_map_CAP_norm_taxa_december,
+            data = arrowdf_CAP_norm_taxa_december,
+            size = 5, fontface="bold",
+            show.legend = FALSE) +
+  scale_color_manual(values=distinctColorPalette(length(unique(CAP_norm_december_taxa_sig_plot_a12$Phylum))),
                      na.value = "black") +
-  scale_fill_manual(values = colorRampPalette(brewer.pal(12, "Paired"))(27),
+  scale_fill_manual(values=distinctColorPalette(length(unique(CAP_norm_december_taxa_sig_plot_a12$Phylum))),
                     na.value = "black")  +
   scale_shape_manual(values=c(15, 17, 18, 4)) +
   guides(fill = FALSE,
@@ -1104,6 +1118,109 @@ ps_cap_r_norm_Month_cat<-plot_grid(final_CAP_norm_april_taxa_sig_plot_a12,
                                    final_CAP_norm_december_taxa_sig_plot_a12,
                                    align = 'v', ncol = 1)
 ```
-```{r, fig.height=17, fig.width=14}
+```{r, fig.height=14, fig.width=14}
 ps_cap_r_norm_Month_cat
 ```
+
+It seems K, EC, Na and temperature influenced a subset of the microbial community mostly composed of Gamma- and Epsilonproteobacteria as well as Omnitrophica plus others across the year. Omintrophica and Parcubacteria seem to appear in different numbers across the year within this cluster.
+
+So who defines this cluster? Let's select the corresponding points of the CAP and figure out.
+
+```{r}
+CAP_norm_cluster_april = subset(final_CAP_norm_april_taxa_sig_plot_a12$data,
+                          CAP1 >= 0.75)
+CAP_norm_cluster_august = subset(final_CAP_norm_august_taxa_sig_plot_a12$data,
+                          CAP1 >= 0.75)
+CAP_norm_cluster_december = subset(final_CAP_norm_december_taxa_sig_plot_a12$data,
+                          CAP1 >= 0.75)
+
+CAP_norm_cluster_april_names <- rownames(CAP_norm_cluster_april)
+CAP_norm_cluster_august_names <- rownames(CAP_norm_cluster_august)
+CAP_norm_cluster_december_names <- rownames(CAP_norm_cluster_december)
+
+ps.b.r_april = subset_samples(ps.b.r, Month == "April")
+ps.b.r_april_f = filter_taxa(ps.b.r_april, function(x) sum(x) > .01, TRUE)
+ps.b.r_august = subset_samples(ps.b.r, Month == "August")
+ps.b.r_august_f = filter_taxa(ps.b.r_august, function(x) sum(x) > .01, TRUE)
+ps.b.r_december = subset_samples(ps.b.r, Month == "December")
+ps.b.r_december_f = filter_taxa(ps.b.r_december, function(x) sum(x) > .01, TRUE)
+
+ps.b.r_april_CAPcluster_taxa   <- prune_taxa(CAP_norm_cluster_april_names, ps.b.r_april_f)
+ps.b.r_august_CAPcluster_taxa   <- prune_taxa(CAP_norm_cluster_august_names, ps.b.r_august_f)
+ps.b.r_december_CAPcluster_taxa   <- prune_taxa(CAP_norm_cluster_december_names, ps.b.r_december_f)
+```
+
+What are the Proteobacteria-to-other-phyla proportions here?
+
+```{r}
+sv.phyl.p.april<-as.data.frame(table(tax_table(ps.b.r_april_CAPcluster_taxa)[, "Phylum"], exclude = NULL))
+sv.phyl.p.april.ord <- sv.phyl.p.april[order(-sv.phyl.p.april$Freq),] 
+head(sv.phyl.p.april.ord, n=10)
+
+sv.phyl.p.august<-as.data.frame(table(tax_table(ps.b.r_august_CAPcluster_taxa)[, "Phylum"], exclude = NULL))
+sv.phyl.p.august.ord <- sv.phyl.p.august[order(-sv.phyl.p.august$Freq),] 
+head(sv.phyl.p.august.ord, n=10)
+
+sv.phyl.p.december<-as.data.frame(table(tax_table(ps.b.r_december_CAPcluster_taxa)[, "Phylum"], exclude = NULL))
+sv.phyl.p.december.ord <- sv.phyl.p.december[order(-sv.phyl.p.december$Freq),] 
+head(sv.phyl.p.december.ord, n=10)
+
+ps.b.r_april_CAPcluster_taxa.glom <- tax_glom(ps.b.r_april_CAPcluster_taxa, taxrank = 'Genus', NArm = FALSE)
+ps.b.r_april_CAPcluster_taxa.glom.psdf <- data.table(psmelt(ps.b.r_april_CAPcluster_taxa.glom))
+ps.b.r_april_CAPcluster_taxa.glom.psdf$Phylum <- as.character(ps.b.r_april_CAPcluster_taxa.glom.psdf$Phylum)
+ps.b.r_april_CAPcluster_taxa.glom.psdf$Class <- as.character(ps.b.r_april_CAPcluster_taxa.glom.psdf$Class)
+ps.b.r_april_CAPcluster_taxa.glom.psdf$Genus <- as.character(ps.b.r_april_CAPcluster_taxa.glom.psdf$Genus)
+ps.b.r_april_CAPcluster_taxa.plot<-ggplot(ps.b.r_april_CAPcluster_taxa.glom.psdf[Abundance > 0], 
+                                    aes(x = Site.name, y = Abundance/3, fill = Genus)) + 
+  geom_bar(stat = "identity") +
+  theme(axis.title.x = element_blank(),
+        axis.text.x = element_text(angle = 45, hjust = 1)) + 
+  guides(fill = guide_legend(keywidth = 1, keyheight = 1)) +
+  ylab("Relative Abundance\n") +
+  scale_fill_manual(values=distinctColorPalette(length(unique(ps.b.r_april_CAPcluster_taxa.glom.psdf$Genus))),
+                     na.value = "black")
+
+ps.b.r_august_CAPcluster_taxa.glom <- tax_glom(ps.b.r_august_CAPcluster_taxa, taxrank = 'Genus', NArm = FALSE)
+ps.b.r_august_CAPcluster_taxa.glom.psdf <- data.table(psmelt(ps.b.r_august_CAPcluster_taxa.glom))
+ps.b.r_august_CAPcluster_taxa.glom.psdf$Phylum <- as.character(ps.b.r_august_CAPcluster_taxa.glom.psdf$Phylum)
+ps.b.r_august_CAPcluster_taxa.glom.psdf$Class <- as.character(ps.b.r_august_CAPcluster_taxa.glom.psdf$Class)
+ps.b.r_august_CAPcluster_taxa.glom.psdf$Genus <- as.character(ps.b.r_august_CAPcluster_taxa.glom.psdf$Genus)
+ps.b.r_august_CAPcluster_taxa.plot<-ggplot(ps.b.r_august_CAPcluster_taxa.glom.psdf[Abundance > 0], 
+                                    aes(x = Site.name, y = Abundance/3, fill = Genus)) + 
+  geom_bar(stat = "identity") +
+  theme(axis.title.x = element_blank(),
+        axis.text.x = element_text(angle = 45, hjust = 1)) + 
+  guides(fill = guide_legend(keywidth = 1, keyheight = 1)) +
+  ylab("Relative Abundance\n") +
+  scale_fill_manual(values=distinctColorPalette(length(unique(ps.b.r_august_CAPcluster_taxa.glom.psdf$Genus))),
+                     na.value = "black")
+
+ps.b.r_december_CAPcluster_taxa.glom <- tax_glom(ps.b.r_december_CAPcluster_taxa, taxrank = 'Genus', NArm = FALSE)
+ps.b.r_december_CAPcluster_taxa.glom.psdf <- data.table(psmelt(ps.b.r_december_CAPcluster_taxa.glom))
+ps.b.r_december_CAPcluster_taxa.glom.psdf$Phylum <- as.character(ps.b.r_december_CAPcluster_taxa.glom.psdf$Phylum)
+ps.b.r_december_CAPcluster_taxa.glom.psdf$Class <- as.character(ps.b.r_december_CAPcluster_taxa.glom.psdf$Class)
+ps.b.r_december_CAPcluster_taxa.glom.psdf$Genus <- as.character(ps.b.r_december_CAPcluster_taxa.glom.psdf$Genus)
+ps.b.r_december_CAPcluster_taxa.plot<-ggplot(ps.b.r_december_CAPcluster_taxa.glom.psdf[Abundance > 0], 
+                                    aes(x = Site.name, y = Abundance/3, fill = Genus)) + 
+  geom_bar(stat = "identity") +
+  theme(axis.title.x = element_blank(),
+        axis.text.x = element_text(angle = 45, hjust = 1)) + 
+  guides(fill = guide_legend(keywidth = 1, keyheight = 1)) +
+  ylab("Relative Abundance\n") +
+  scale_fill_manual(values=distinctColorPalette(length(unique(ps.b.r_december_CAPcluster_taxa.glom.psdf$Genus))),
+                     na.value = "black")
+
+ps.b.r_CAPcluster_taxa_plot <- plot_grid(ps.b.r_april_CAPcluster_taxa.plot, 
+                                         ps.b.r_august_CAPcluster_taxa.plot, 
+                                         ps.b.r_december_CAPcluster_taxa.plot,
+                                         align = 'v', ncol = 1)
+```
+```{r, fig.height=16, fig.width=14}
+ps.b.r_CAPcluster_taxa_plot
+```
+
+As expected, the genus-level analysis shows that the main Epsilonproteobacterial players are the ones modulating this shift showed by the CAP. Further, the Gammaproteobacteria noticed in that shifted cluster are represented by Thiotrix. In April, Omnitrophica follows Proteobacteria in SV presence, whilst in August and December it's Parcubacteria, both of these in numbers ~8x smaller than Proteobacterial SVs.
+
+Importantly, this cluster is, albeit not in huge amounts, driven by temperature, K, EC and Na, bit less in December. What can this mean mostly for these environmental variables? I can see how temperature might impact given that in Crumlin, Celynen and Six Bells are amongst the warmest sites. The first two also present the highest EC values in the same figure.
+
+Ok then, I have no idea what to do at this point, passing on to other stuff.

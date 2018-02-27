@@ -122,7 +122,7 @@ ps.b.deep_128.glom.df.plot<-ggplot(ps.b.deep_128.glom.df[Abundance > 0.03],
   scale_fill_manual(values = colorRampPalette(brewer.pal(12, "Paired"))(colourCount_128), 
                     na.value = "gray48")
 ```
-```{r fig.width=14, message=FALSE, warning=FALSE, , fig.height=16}
+```{r fig.width=14, message=FALSE, warning=FALSE, fig.height=16}
 ps.b.deep_128.glom.df.plot
 ```
 
