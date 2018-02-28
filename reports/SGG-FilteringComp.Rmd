@@ -1,0 +1,334 @@
+---
+title: "SGG - How does filtering the dataset impact classification and ordination?"
+author: "André Soares"
+date: "28 February 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r initial loadings, include=FALSE}
+library(dada2); packageVersion("dada2")
+library(ggplot2); packageVersion("ggplot2")
+library(phyloseq); packageVersion("phyloseq")
+library(data.table); packageVersion("data.table")
+library(DESeq2); packageVersion("DESeq2")
+library(dplyr)
+library(plyr)
+library(magrittr)
+library(RColorBrewer)
+library(phangorn)
+library(DECIPHER)
+library("structSSI")
+library(ips)
+library(msa)
+library(picante)
+library(igraph)
+library(cowplot)
+library(plotly)
+library(lemon)
+```
+
+Loading the dataset.
+
+```{r load SV data}
+SGG_SVt = readRDS("/media/andre/B2F8C9A0F8C962E9/SGG_16S_analysis/SGG_16S_data_trimmed_DADA2_table/seqtab_final.rds")
+SGG_Tax = readRDS("/media/andre/B2F8C9A0F8C962E9/SGG_16S_analysis/SGG_16S_data_trimmed_DADA2_table/tax_final.rds")
+sgg_metadata<-read.csv("/media/andre/B2F8C9A0F8C962E9/SGG_16S_analysis/SGG_16S_metadata/SGG_metadata.csv", header=TRUE)
+order<-rownames(SGG_SVt)
+sgg_metadata_ord<-sgg_metadata[match(order, sgg_metadata$Sample_Code),]
+rownames(sgg_metadata_ord) <- sgg_metadata_ord$Sample_Code
+ps <- phyloseq(otu_table(SGG_SVt, taxa_are_rows=FALSE),
+               sample_data(sgg_metadata_ord), 
+               tax_table(SGG_Tax))
+ps.b = subset_samples(ps, Sample_type != "Control")
+ps.b <- prune_taxa(taxa_sums(ps.b) > 0, ps.b)
+#order months
+sample_data(ps.b)$Month = factor(sample_data(ps.b)$Month, 
+                                 levels = c("April","August","December"))
+#to relative abundances
+ps.b = subset_taxa(ps.b, Kingdom %in% c("Archaea", "Bacteria"))
+ps.b.r <-  transform_sample_counts(ps.b, function(x) {x/sum(x)} ) 
+```
+
+Filtering the dataset to hold only taxa represented by over certain thresholds.
+
+```{r}
+ps.b.r.no2 <- prune_taxa(taxa_sums(ps.b) > 2, ps.b.r)
+ps.b.r.no5 <- prune_taxa(taxa_sums(ps.b) > 5, ps.b.r)
+ps.b.r.no10 <- prune_taxa(taxa_sums(ps.b) > 10, ps.b.r)
+ps.b.r.no50 <- prune_taxa(taxa_sums(ps.b) > 50, ps.b.r)
+ps.b.r.no100 <- prune_taxa(taxa_sums(ps.b) > 100, ps.b.r)
+ps.b.r.no200 <- prune_taxa(taxa_sums(ps.b) > 200, ps.b.r)
+ps.b.r.0.005 <- prune_taxa(taxa_sums(ps.b.r) > 0.005, ps.b.r)
+ps.b.r.0.01 <- prune_taxa(taxa_sums(ps.b.r) > 0.01, ps.b.r)
+ps.b.r.0.05 <- prune_taxa(taxa_sums(ps.b.r) > 0.05, ps.b.r)
+
+ps.b.r.no2
+ps.b.r.no5
+ps.b.r.no10
+ps.b.r.no50
+ps.b.r.no100
+ps.b.r.no200
+ps.b.r.0.005
+ps.b.r.0.01
+ps.b.r.0.05
+```
+
+How does this filtering change genus-level classification?
+
+Showing ratios of classified SVs at different ranks.
+
+```{r}
+#Phylum
+ps.b.r.no2.p<-as.data.frame(table(tax_table(ps.b.r.no2)[, "Phylum"], exclude = NULL))
+ps.b.r.no2.ord.p <- ps.b.r.no2.p[order(-ps.b.r.no2.p$Freq),]
+na.no2.p <- ps.b.r.no2.ord.p[is.na(ps.b.r.no2.ord.p$Var1),]
+1-(na.no2.p$Freq)/sum(ps.b.r.no2.ord.p$Freq)
+#Genus
+ps.b.r.no2.g<-as.data.frame(table(tax_table(ps.b.r.no2)[, "Genus"], exclude = NULL))
+ps.b.r.no2.ord.g <- ps.b.r.no2.g[order(-ps.b.r.no2.g$Freq),]
+na.no2.g <- ps.b.r.no2.ord.g[is.na(ps.b.r.no2.ord.g$Var1),]
+1-(na.no2.g$Freq)/sum(ps.b.r.no2.ord.g$Freq)
+
+#Phylum
+ps.b.r.no5.g<-as.data.frame(table(tax_table(ps.b.r.no5)[, "Phylum"], exclude = NULL))
+ps.b.r.no5.ord.g <- ps.b.r.no5.g[order(-ps.b.r.no5.g$Freq),] 
+na.no5.g <- ps.b.r.no5.ord.g[is.na(ps.b.r.no5.ord.g$Var1),]
+1-(na.no5.g$Freq)/sum(ps.b.r.no5.ord.g$Freq)
+#Genus
+ps.b.r.no5.g<-as.data.frame(table(tax_table(ps.b.r.no5)[, "Genus"], exclude = NULL))
+ps.b.r.no5.ord.g <- ps.b.r.no5.g[order(-ps.b.r.no5.g$Freq),] 
+na.no5.g <- ps.b.r.no5.ord.g[is.na(ps.b.r.no5.ord.g$Var1),]
+1-(na.no5.g$Freq)/sum(ps.b.r.no5.ord.g$Freq)
+
+#Phylum
+ps.b.r.no10.p<-as.data.frame(table(tax_table(ps.b.r.no10)[, "Phylum"], exclude = NULL))
+ps.b.r.no10.ord.p <- ps.b.r.no10.p[order(-ps.b.r.no10.p$Freq),] 
+na.no10.p <- ps.b.r.no10.ord.p[is.na(ps.b.r.no10.ord.p$Var1),]
+1-(na.no10.p$Freq)/sum(ps.b.r.no10.ord.p$Freq)
+#Genus
+ps.b.r.no10.g<-as.data.frame(table(tax_table(ps.b.r.no10)[, "Genus"], exclude = NULL))
+ps.b.r.no10.ord.g <- ps.b.r.no10.g[order(-ps.b.r.no10.g$Freq),] 
+na.no10.g <- ps.b.r.no10.ord.g[is.na(ps.b.r.no10.ord.g$Var1),]
+1-(na.no10.g$Freq)/sum(ps.b.r.no10.ord.g$Freq)
+
+#Phylum
+ps.b.r.no50.p<-as.data.frame(table(tax_table(ps.b.r.no50)[, "Phylum"], exclude = NULL))
+ps.b.r.no50.ord.p <- ps.b.r.no50.p[order(-ps.b.r.no50.p$Freq),] 
+na.no50.p <- ps.b.r.no50.ord.p[is.na(ps.b.r.no50.ord.p$Var1),]
+1-(na.no50.p$Freq)/sum(ps.b.r.no50.ord.p$Freq)
+#Genus
+ps.b.r.no50.g<-as.data.frame(table(tax_table(ps.b.r.no50)[, "Genus"], exclude = NULL))
+ps.b.r.no50.ord.g <- ps.b.r.no50.g[order(-ps.b.r.no50.g$Freq),] 
+na.no50.g <- ps.b.r.no50.ord.g[is.na(ps.b.r.no50.ord.g$Var1),]
+1-(na.no50.g$Freq)/sum(ps.b.r.no50.ord.g$Freq)
+
+#Phylum
+ps.b.r.no100.p<-as.data.frame(table(tax_table(ps.b.r.no100)[, "Phylum"], exclude = NULL))
+ps.b.r.no100.ord.p <- ps.b.r.no100.p[order(-ps.b.r.no100.p$Freq),] 
+na.no100.p <- ps.b.r.no100.ord.p[is.na(ps.b.r.no100.ord.p$Var1),]
+1-(na.no100.p$Freq)/sum(ps.b.r.no100.ord.p$Freq)
+#Genus
+ps.b.r.no100.g<-as.data.frame(table(tax_table(ps.b.r.no100)[, "Genus"], exclude = NULL))
+ps.b.r.no100.ord.g <- ps.b.r.no100.g[order(-ps.b.r.no100.g$Freq),] 
+na.no100.g <- ps.b.r.no100.ord.g[is.na(ps.b.r.no100.ord.g$Var1),]
+1-(na.no100.g$Freq)/sum(ps.b.r.no100.ord.g$Freq)
+
+#Phylum
+ps.b.r.no200.p<-as.data.frame(table(tax_table(ps.b.r.no200)[, "Phylum"], exclude = NULL))
+ps.b.r.no200.ord.p <- ps.b.r.no200.p[order(-ps.b.r.no200.p$Freq),] 
+na.no200.p <- ps.b.r.no200.ord.p[is.na(ps.b.r.no200.ord.p$Var1),]
+1-(na.no200.p$Freq)/sum(ps.b.r.no200.ord.p$Freq)
+
+#Genus
+ps.b.r.no200.g<-as.data.frame(table(tax_table(ps.b.r.no200)[, "Genus"], exclude = NULL))
+ps.b.r.no200.ord.g <- ps.b.r.no200.g[order(-ps.b.r.no200.g$Freq),] 
+na.no200.g <- ps.b.r.no200.ord.g[is.na(ps.b.r.no200.ord.g$Var1),]
+1-(na.no200.g$Freq)/sum(ps.b.r.no200.ord.g$Freq)
+
+#Phylum
+ps.b.r.0.005.p<-as.data.frame(table(tax_table(ps.b.r.0.005)[, "Phylum"], exclude = NULL))
+ps.b.r.0.005.ord.p <- ps.b.r.0.005.p[order(-ps.b.r.0.005.p$Freq),] 
+na.0.005.p <- ps.b.r.0.005.ord.p[is.na(ps.b.r.0.005.ord.p$Var1),]
+1-(na.0.005.p$Freq)/sum(ps.b.r.0.005.ord.p$Freq)
+
+#Genus
+ps.b.r.0.005.g<-as.data.frame(table(tax_table(ps.b.r.0.005)[, "Genus"], exclude = NULL))
+ps.b.r.0.005.ord.g <- ps.b.r.0.005.g[order(-ps.b.r.0.005.g$Freq),] 
+na.0.005.g <- ps.b.r.0.005.ord.g[is.na(ps.b.r.0.005.ord.g$Var1),]
+1-(na.0.005.g$Freq)/sum(ps.b.r.0.005.ord.g$Freq)
+
+#Phylum
+ps.b.r.0.01.p<-as.data.frame(table(tax_table(ps.b.r.0.01)[, "Phylum"], exclude = NULL))
+ps.b.r.0.01.ord.p <- ps.b.r.0.01.p[order(-ps.b.r.0.01.p$Freq),] 
+na.0.01.p <- ps.b.r.0.01.ord.p[is.na(ps.b.r.0.01.ord.p$Var1),]
+1-(na.0.01.p$Freq)/sum(ps.b.r.0.01.ord.p$Freq)
+
+#Genus
+ps.b.r.0.01.g<-as.data.frame(table(tax_table(ps.b.r.0.01)[, "Genus"], exclude = NULL))
+ps.b.r.0.01.ord.g <- ps.b.r.0.01.g[order(-ps.b.r.0.01.g$Freq),] 
+na.0.01.g <- ps.b.r.0.01.ord.g[is.na(ps.b.r.0.01.ord.g$Var1),]
+1-(na.0.01.g$Freq)/sum(ps.b.r.0.01.ord.g$Freq)
+
+#Phylum
+ps.b.r.0.05.p<-as.data.frame(table(tax_table(ps.b.r.0.05)[, "Phylum"], exclude = NULL))
+ps.b.r.0.05.ord.p <- ps.b.r.0.05.p[order(-ps.b.r.0.05.p$Freq),] 
+na.0.05.p <- ps.b.r.0.05.ord.p[is.na(ps.b.r.0.05.ord.p$Var1),]
+1-(na.0.05.p$Freq)/sum(ps.b.r.0.05.ord.p$Freq)
+#Genus
+ps.b.r.0.05.g<-as.data.frame(table(tax_table(ps.b.r.0.05)[, "Genus"], exclude = NULL))
+ps.b.r.0.05.ord.g <- ps.b.r.0.05.g[order(-ps.b.r.0.05.g$Freq),] 
+na.0.05.g <- ps.b.r.0.05.ord.g[is.na(ps.b.r.0.05.ord.g$Var1),]
+1-(na.0.05.g$Freq)/sum(ps.b.r.0.05.ord.g$Freq)
+```
+
+So it seems that as filtering gets stricter, the ratio of phylum-level classifications goes up from 92% to 94% as do genus-level classifications from 19.5% to 24%. This isn't too weird, kind of expected.
+
+How does ordination respond to this filtering?
+
+```{r}
+ps.b.r.no2.pcoa  <- ordinate(ps.b.r.no2, "PCoA", distance="jsd", 
+                         k=2, trymax=1e3, weighted=TRUE)
+ps.b.r.no5.pcoa  <- ordinate(ps.b.r.no5, "PCoA", distance="jsd", 
+                         k=2, trymax=1e3, weighted=TRUE)
+ps.b.r.no10.pcoa  <- ordinate(ps.b.r.no10, "PCoA", distance="jsd", 
+                         k=2, trymax=1e3, weighted=TRUE)
+ps.b.r.no50.pcoa  <- ordinate(ps.b.r.no50, "PCoA", distance="jsd", 
+                         k=2, trymax=1e3, weighted=TRUE)
+ps.b.r.no100.pcoa  <- ordinate(ps.b.r.no100, "PCoA", distance="jsd", 
+                         k=2, trymax=1e3, weighted=TRUE)
+ps.b.r.no200.pcoa  <- ordinate(ps.b.r.no200, "PCoA", distance="jsd", 
+                         k=2, trymax=1e3, weighted=TRUE)
+ps.b.r.0.005.pcoa  <- ordinate(ps.b.r.0.005, "PCoA", distance="jsd", 
+                         k=2, trymax=1e3, weighted=TRUE)
+ps.b.r.0.01.pcoa  <- ordinate(ps.b.r.0.01, "PCoA", distance="jsd", 
+                         k=2, trymax=1e3, weighted=TRUE)
+ps.b.r.0.05.pcoa  <- ordinate(ps.b.r.0.05, "PCoA", distance="jsd", 
+                         k=2, trymax=1e3, weighted=TRUE)
+
+ps.b.r.no2.pcoa.evals<-ps.b.r.no2.pcoa$values$Eigenvalues
+ps.b.r.no2.pcoa.evals.a12<-sum(ps.b.r.no2.pcoa.evals[1:2])/sum(ps.b.r.no2.pcoa.evals)
+ps.b.r.no2.pcoa.evals.a12.r<-round(ps.b.r.no2.pcoa.evals.a12, digits=5)*100
+ps.b.r.no2.pcoa.evals.a12.r
+
+ps.b.r.no5.pcoa.evals<-ps.b.r.no5.pcoa$values$Eigenvalues
+ps.b.r.no5.pcoa.evals.a12<-sum(ps.b.r.no5.pcoa.evals[1:2])/sum(ps.b.r.no5.pcoa.evals)
+ps.b.r.no5.pcoa.evals.a12.r<-round(ps.b.r.no5.pcoa.evals.a12, digits=5)*100
+ps.b.r.no5.pcoa.evals.a12.r
+
+ps.b.r.no10.pcoa.evals<-ps.b.r.no10.pcoa$values$Eigenvalues
+ps.b.r.no10.pcoa.evals.a12<-sum(ps.b.r.no10.pcoa.evals[1:2])/sum(ps.b.r.no10.pcoa.evals)
+ps.b.r.no10.pcoa.evals.a12.r<-round(ps.b.r.no10.pcoa.evals.a12, digits=5)*100
+ps.b.r.no10.pcoa.evals.a12.r
+
+ps.b.r.no50.pcoa.evals<-ps.b.r.no50.pcoa$values$Eigenvalues
+ps.b.r.no50.pcoa.evals.a12<-sum(ps.b.r.no50.pcoa.evals[1:2])/sum(ps.b.r.no50.pcoa.evals)
+ps.b.r.no50.pcoa.evals.a12.r<-round(ps.b.r.no50.pcoa.evals.a12, digits=5)*100
+ps.b.r.no50.pcoa.evals.a12.r
+
+ps.b.r.no100.pcoa.evals<-ps.b.r.no100.pcoa$values$Eigenvalues
+ps.b.r.no100.pcoa.evals.a12<-sum(ps.b.r.no100.pcoa.evals[1:2])/sum(ps.b.r.no100.pcoa.evals)
+ps.b.r.no100.pcoa.evals.a12.r<-round(ps.b.r.no100.pcoa.evals.a12, digits=5)*100
+ps.b.r.no100.pcoa.evals.a12.r
+
+ps.b.r.no200.pcoa.evals<-ps.b.r.no200.pcoa$values$Eigenvalues
+ps.b.r.no200.pcoa.evals.a12<-sum(ps.b.r.no200.pcoa.evals[1:2])/sum(ps.b.r.no200.pcoa.evals)
+ps.b.r.no200.pcoa.evals.a12.r<-round(ps.b.r.no200.pcoa.evals.a12, digits=5)*100
+ps.b.r.no200.pcoa.evals.a12.r
+
+ps.b.r.0.005.pcoa.evals<-ps.b.r.0.005.pcoa$values$Eigenvalues
+ps.b.r.0.005.pcoa.evals.a12<-sum(ps.b.r.0.005.pcoa.evals[1:2])/sum(ps.b.r.0.005.pcoa.evals)
+ps.b.r.0.005.pcoa.evals.a12.r<-round(ps.b.r.0.005.pcoa.evals.a12, digits=5)*100
+ps.b.r.0.005.pcoa.evals.a12.r
+
+ps.b.r.0.01.pcoa.evals<-ps.b.r.0.01.pcoa$values$Eigenvalues
+ps.b.r.0.01.pcoa.evals.a12<-sum(ps.b.r.0.01.pcoa.evals[1:2])/sum(ps.b.r.0.01.pcoa.evals)
+ps.b.r.0.01.pcoa.evals.a12.r<-round(ps.b.r.0.01.pcoa.evals.a12, digits=5)*100
+ps.b.r.0.01.pcoa.evals.a12.r
+
+ps.b.r.0.05.pcoa.evals<-ps.b.r.0.05.pcoa$values$Eigenvalues
+ps.b.r.0.05.pcoa.evals.a12<-sum(ps.b.r.0.05.pcoa.evals[1:2])/sum(ps.b.r.0.05.pcoa.evals)
+ps.b.r.0.05.pcoa.evals.a12.r<-round(ps.b.r.0.05.pcoa.evals.a12, digits=5)*100
+ps.b.r.0.05.pcoa.evals.a12.r
+```
+
+Well, the percentage of variation explained by ordination rises from ~34% to ~39% as filtering goes by. But nothing much really.
+
+But does this change much in the ordination outlook?
+
+```{r}
+ps.b.r.0.05.pcoa.evals.a13<-sum(ps.b.r.0.05.pcoa.evals[c(1,3)])/sum(ps.b.r.0.05.pcoa.evals)
+ps.b.r.0.05.pcoa.evals.a13.r<-round(ps.b.r.0.05.pcoa.evals.a13, digits=5)*100
+
+ps.b.r.0.05.pcoa.plot.a12 <- plot_ordination(ps.b.r.0.05, ps.b.r.0.05.pcoa, 
+                                              axes = c(1,2),
+                                       color="Site.name", shape="Month") +
+  geom_polygon(aes(fill=Site.name), alpha=0.5) +
+  geom_point(alpha=0.5, size=4)+
+  scale_alpha(guide = 'none') +
+  theme(legend.position = "none") +
+  annotate("text", y= 0.3, x =0.25,label=paste("Axes 1 and 2:\n",
+                                               ps.b.r.0.05.pcoa.evals.a12.r,"% variation")
+           ,hjust=0.5, size=5) +
+  scale_color_manual(values = colorRampPalette(brewer.pal(12, "Paired"))(14)) +
+  scale_fill_manual(values = colorRampPalette(brewer.pal(12, "Paired"))(14))
+
+ps.b.r.0.05.pcoa.plot.a13 <- plot_ordination(ps.b.r.0.05, ps.b.r.0.05.pcoa, 
+                                              axes = c(1,3),
+                                       color="Site.name", shape="Month") +
+  geom_polygon(aes(fill=Site.name), alpha=0.5) +
+  geom_point(alpha=0.5, size=4) +
+  scale_alpha(guide = 'none')+
+  annotate("text", y= 0.2, x =0.25,label=paste("Axes 1 and 3:\n",
+                                               ps.b.r.0.05.pcoa.evals.a13.r,"% variation")
+           ,hjust=0.5, size=5) +
+  scale_color_manual(values = colorRampPalette(brewer.pal(12, "Paired"))(14)) +
+  scale_fill_manual(values = colorRampPalette(brewer.pal(12, "Paired"))(14))
+
+ps.b.r.0.05.pcoa.plot<-plot_grid(ps.b.r.0.05.pcoa.plot.a12, ps.b.r.0.05.pcoa.plot.a13, 
+                            labels=c("A","B"))
+```
+```{r, fig.width=16}
+ps.b.r.0.05.pcoa.plot
+```
+
+Looks like they're pretty much the same!
+
+However, are genus-level interactions impacted by this filtering and general improvement on the ratios of classification at this rank level?
+
+```{r}
+ps.b.r.0.05.g = subset_taxa(ps.b.r.0.05, 
+                            Phylum=="Proteobacteria" | Phylum=="Parcubacteria" | Phylum=="Omnitrophica" | Phylum=="Woesearchaeota_(DHVEG-6)")
+ps.b.r.0.05.g.glom <- tax_glom(ps.b.r.0.05.g, taxrank = 'Genus', NArm = FALSE)
+ps.b.r.0.05.g.glom.df <- data.table(psmelt(ps.b.r.0.05.g.glom))
+
+ps.b.r.0.05.g.glom.df.g<-na.omit(ps.b.r.0.05.g.glom.df, cols=c("Genus"))
+ps.b.r.0.05.g.glom.df.g<-subset(ps.b.r.0.05.g.glom.df.g, 
+                                                  Genus %in% c("Sideroxydans","Gallionella","Ferriphaselus",
+                                                               "Sulfurimonas","Sulfurovum","Sulfuricurvum"))
+ps.b.r.0.05.g.glom.df.g$Genus = factor(ps.b.r.0.05.g.glom.df.g$Genus, 
+                                                       levels = c("Gallionella","Sideroxydans","Ferriphaselus",
+                                                               "Sulfuricurvum","Sulfurovum","Sulfurimonas"))
+ps.b.r.0.05.g.glom.df.g$Month = factor(ps.b.r.0.05.g.glom.df.g$Month,
+                                           levels=c("December", "August", "April"))
+ps.b.r.0.05.g.glom.df.g.plot <- ggplot(ps.b.r.0.05.g.glom.df.g, 
+       aes(x=Month, y=Abundance, color=Site.name)) +
+  geom_point(aes(fill=Site.name, 
+                 color=Site.name)) +
+  geom_smooth(aes(group=Site.name),
+              method="loess", se = FALSE) +
+  facet_wrap(~Genus)+
+  theme(axis.title.y = element_blank()) +
+  coord_flip() +
+  scale_x_discrete(expand=c(0.05, 0.05)) +
+  scale_color_manual(values = colorRampPalette(brewer.pal(12, "Paired"))(14))
+```
+```{r message=FALSE, warning=FALSE, fig.width=16}
+ps.b.r.0.05.g.glom.df.g.plot
+```
+
+Meh, same crap with slightly better classification ratios.
+
+Not really looking much further into it.

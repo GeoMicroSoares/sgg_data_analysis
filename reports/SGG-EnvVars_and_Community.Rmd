@@ -411,6 +411,59 @@ plot_grid(KONEFE_Fe_mgL_plot, D_Fe_mgL_plot, ICPWATVAR_Fe_mgL_plot, Fe2_mgL_plot
           rel_heights = c(0.1,0.1,0.1,0.1))
 ```
 
+```{r}
+library(hydrogeo)
+ppm <- as.data.frame(list(Ca   = metadata$Ca.µg.mL,
+            Mg   = metadata$Mg.µg.ml,
+            Na   = metadata$Na.µg.ml,
+            K    = metadata$K.µg.ml,
+            Cl   = metadata$Cl..µg.ml,
+            SO4  = metadata$SO4..µg.ml))
+meq <- ppm
+#correct some 'stuff'
+meq$Ca[is.na(meq$Ca)] <- 194.0
+meq$Mg[is.na(meq$Mg)] <- 65.70
+#to meq/L
+meq$Ca = meq$Ca*0.05
+meq$Na = meq$Na*0.04348
+meq$K = meq$K*0.0256
+meq$Cl = meq$Cl*0.02817
+meq$SO4 = meq$SO4*0.02083
+#to percents
+# meq_percents <- as.matrix(meq) %*% diag(1/colSums(as.matrix(meq))*100)
+meq_pc <- meq
+totalCations <- meq_pc$Ca + meq_pc$Mg + meq_pc$Na + meq_pc$K
+totalAnions <- meq_pc$Cl + meq_pc$SO4
+meq_pc$HCO3 <- (totalCations-totalAnions)
+meq_pc$Ca <- 100 * (meq_pc$Ca/totalCations)
+meq_pc$Mg <- 100 * (meq_pc$Mg/totalCations)
+meq_pc$Na <- 100 * (meq_pc$Na/totalCations)
+meq_pc$K <- 100 * (meq_pc$K/totalCations)
+totalAnions <- meq_pc$Cl + meq_pc$SO4
+# didn't measure CO3, HCO3, etc, so crap
+totalAnions_2 <- meq_pc$Cl + meq_pc$SO4 + meq_pc$HCO3
+meq_pc$Cl <- 100 * (meq_pc$Cl/totalAnions_2)
+meq_pc$SO4 <- 100 * (meq_pc$SO4/totalAnions_2)
+meq_pc$HCO3 <- 100 * (meq_pc$HCO3/totalAnions_2)
+#oh god oh god
+apply(meq_pc[, c("Ca", "Mg", "Na", "K")], 1, FUN = sum)
+apply(meq_pc[, c("Cl", "SO4", "HCO3")], 1, FUN = sum)
+
+data <- as.data.frame(meq_pc)
+colnames(data) <- c("Ca","Mg","Na","K","Cl","SO4", "HCO3")
+data$Site_name <- metadata$Site.name
+data$Month <- metadata$Month
+
+piper_data <- transform_piper_data(Ca   = data$Ca,
+                                   Mg   = data$Mg,
+                                   Cl   = data$Cl,
+                                   SO4  = data$SO4,
+                                   name = data$Site_name)
+ggplot_piper() + geom_point(data=piper_data,
+                            aes(x,y, colour=factor(observation)))+
+  scale_color_manual(values = colorRampPalette(brewer.pal(12, "Paired"))(13))
+```
+
 So, in 2016, while most of the other sites were close to 0, it seems a LOT of iron was being detected in Ynysarwed. Are there taxonomical evidences of more iron users there? Not really as seen on ```SGG-GenTaxonomy.html```.
 
 ##**4 -** How do environmental variables relate to microbial community structure in this dataset?
