@@ -28,6 +28,7 @@ library(igraph)
 library(cowplot)
 library(plotly)
 library(lemon)
+library(randomcoloR)
 ```
 
 ```{r load SV data, echo=FALSE}
@@ -107,19 +108,38 @@ Is this dominance explain by particular genera? Yep, seems like so. Also, some t
 
 ```{r genera plot}
 ps.b.deep_128 = subset_taxa(ps.b.r, 
-                            Phylum=="Proteobacteria" | Phylum=="Parcubacteria" | Phylum=="Omnitrophica" | Phylum=="Woesearchaeota_(DHVEG-6)")
+                            Family=="Gallionellaceae" | Family=="Helicobacteraceae" | Family=="Pseudomonadaceae" | Family=="Thiotrichaceae" | Family=="Hydrogenophilaceae" | Phylum=="Omnitrophica" | Phylum=="Parcubacteria")
 ps.b.deep_128.glom <- tax_glom(ps.b.deep_128, taxrank = 'Genus', NArm = FALSE)
 ps.b.deep_128.glom.df <- data.table(psmelt(ps.b.deep_128.glom))
-colourCount_128 = length(unique(ps.b.deep_128.glom.df[Abundance > 0.03]$Genus))+1
+levels(ps.b.deep_128.glom.df$Genus)<-c(levels(ps.b.deep_128.glom.df$Genus),
+                                     c("Unc. Gallionellaceae","Unc. Helicobacteraceae", 
+                                       "Omnitrophica","Parcubacteria","Unc. Omnitrophica","Unc. Parcubacteria",
+                                       "Unc. Pseudomonadaceae","Unc. Thiotrichaceae","Unc. Hydrogenophilaceae"))
+ps.b.deep_128.glom.df$Genus[is.na(ps.b.deep_128.glom.df$Genus) & ps.b.deep_128.glom.df$Family=="Gallionellaceae"] <- "Unc. Gallionellaceae"
+ps.b.deep_128.glom.df$Genus[is.na(ps.b.deep_128.glom.df$Genus) & ps.b.deep_128.glom.df$Family=="Helicobacteraceae"] <- "Unc. Helicobacteraceae"
+ps.b.deep_128.glom.df$Genus[is.na(ps.b.deep_128.glom.df$Genus) & ps.b.deep_128.glom.df$Family=="Pseudomonadaceae"] <- "Unc. Pseudomonadaceae"
+ps.b.deep_128.glom.df$Genus[is.na(ps.b.deep_128.glom.df$Genus) & ps.b.deep_128.glom.df$Family=="Thiotrichaceae"] <- "Unc. Thiotrichaceae"
+ps.b.deep_128.glom.df$Genus[is.na(ps.b.deep_128.glom.df$Genus) & ps.b.deep_128.glom.df$Family=="Hydrogenophilaceae"] <- "Unc. Hydrogenophilaceae"
+ps.b.deep_128.glom.df$Genus[ps.b.deep_128.glom.df$Phylum=="Omnitrophica"] <- "Omnitrophica"
+ps.b.deep_128.glom.df$Genus[ps.b.deep_128.glom.df$Phylum=="Parcubacteria"] <- "Parcubacteria"
+
 ps.b.deep_128.glom.df.plot<-ggplot(ps.b.deep_128.glom.df[Abundance > 0.03], 
-                                        aes(x = Site.name, y = Abundance/3, fill = Genus)) + 
-  facet_grid(Month~.) +
-  geom_bar(stat = "identity") +
+                                        aes(x = Genus, y = Abundance, fill = Genus)) + 
+  facet_grid(Site.name~Month)+
+  geom_point(aes(color=Genus, fill=Genus,
+                 size=Abundance)) + 
   theme(axis.title.x = element_blank(),
-        axis.text.x = element_text(angle = 40, hjust = 1)) + 
-  guides(fill = guide_legend(nrow = colourCount_128)) +
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        strip.text.y = element_text(angle = 0),
+        panel.background = element_rect(colour = "gray91",
+                                       fill = "gray91"),
+        panel.grid.major.y = element_line(color = "white")) + 
+  guides(fill = guide_legend(nrow = 16)) +
   ylab("Relative Abundance\n") +
-  scale_fill_manual(values = colorRampPalette(brewer.pal(12, "Paired"))(colourCount_128), 
+  scale_fill_manual(values = colorRampPalette(brewer.pal(12, "Paired"))(14), 
+                    na.value = "gray48") +
+  scale_color_manual(values = colorRampPalette(brewer.pal(12, "Paired"))(14), 
                     na.value = "gray48")
 ```
 ```{r fig.width=14, message=FALSE, warning=FALSE, fig.height=16}
@@ -153,6 +173,43 @@ ps.b.r.glom.phy.psdf.f.s.plot
 ```
 
 This site is clearly populated by a microbial community where a number of phyla co-exist in relatively low (between 25 and 5%) proportions.
+
+What does this reflect? Is this a matter of just one or two bacterial species in Lindsay or is this highly diverse even within each phylum?
+
+```{r}
+ps.b.r.glom.gen <- tax_glom(ps.b.r.LindsayCHen, taxrank = 'Genus', NArm = FALSE )
+ps.b.r.glom.gen.psdf <- data.table(psmelt(ps.b.r.glom.gen))
+# ps.b.r.glom.gen.psdf[, median := median(Abundance, na.rm = TRUE),
+#                         by = "Genus"]
+# ps.b.r.glom.gen.psdf[(median <= 0.0001), Genus := "Other"]
+levels(ps.b.r.glom.gen.psdf$Genus)<-c(levels(ps.b.r.glom.gen.psdf$Genus),
+                                     c("Unc. Omnitrophica","Unc. Omnitrophica",
+                                       "Unc. Gallionellaceae","Unc. Helicobacteraceae",
+                                       "Unc. Pseudomonadaceae","Unc. Thiotrichaceae","Unc. Hydrogenophilaceae"))
+ps.b.r.glom.gen.psdf$Genus[is.na(ps.b.r.glom.gen.psdf$Class) & ps.b.r.glom.gen.psdf$Phylum=="Omnitrophica"] <- "Unc. Omnitrophica"
+ps.b.r.glom.gen.psdf$Genus[is.na(ps.b.r.glom.gen.psdf$Class) & ps.b.r.glom.gen.psdf$Phylum=="Parcubacteria"] <- "Unc. Omnitrophica"
+ps.b.r.glom.gen.psdf$Genus[is.na(ps.b.r.glom.gen.psdf$Genus) & ps.b.r.glom.gen.psdf$Family=="Gallionellaceae"] <- "Unc. Gallionellaceae"
+ps.b.r.glom.gen.psdf$Genus[is.na(ps.b.r.glom.gen.psdf$Genus) & ps.b.r.glom.gen.psdf$Family=="Helicobacteraceae"] <- "Unc. Helicobacteraceae"
+ps.b.r.glom.gen.psdf$Genus[is.na(ps.b.r.glom.gen.psdf$Genus) & ps.b.r.glom.gen.psdf$Family=="Pseudomonadaceae"] <- "Unc. Pseudomonadaceae"
+ps.b.r.glom.gen.psdf$Genus[is.na(ps.b.r.glom.gen.psdf$Genus) & ps.b.r.glom.gen.psdf$Family=="Thiotrichaceae"] <- "Unc. Thiotrichaceae"
+ps.b.r.glom.gen.psdf$Genus[is.na(ps.b.r.glom.gen.psdf$Genus) & ps.b.r.glom.gen.psdf$Family=="Hydrogenophilaceae"] <- "Unc. Hydrogenophilaceae"
+
+ps.b.r.glom.gen.psdf.plot=ggplot(ps.b.r.glom.gen.psdf[Abundance > 0.005], 
+                                 aes(x=Month, y=Abundance/3, 
+                                     color=Genus, fill=Genus)) +
+  geom_bar(stat = "identity",
+           width = 0.6) +
+  ylab("Relative abundance") +
+  theme(axis.text.x = element_text(angle=40, hjust = 1, vjust = 1),
+        axis.title.x = element_blank()) +
+  guides(fill = guide_legend(nrow = 20),
+         color = guide_legend(nrow = 20)) +
+  scale_color_manual(values = colorRampPalette(brewer.pal(12, "Paired"))(19), 
+                    na.value = "gray48") +
+  scale_fill_manual(values = colorRampPalette(brewer.pal(12, "Paired"))(19), 
+                    na.value = "gray48")
+ps.b.r.glom.gen.psdf.plot
+```
 
 ##2 - Are there temporal effects to the taxonomic profiles of the dataset?
 

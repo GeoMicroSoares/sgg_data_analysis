@@ -411,7 +411,7 @@ plot_grid(KONEFE_Fe_mgL_plot, D_Fe_mgL_plot, ICPWATVAR_Fe_mgL_plot, Fe2_mgL_plot
           rel_heights = c(0.1,0.1,0.1,0.1))
 ```
 
-```{r}
+```{r eval=FALSE, include=FALSE}
 library(hydrogeo)
 ppm <- as.data.frame(list(Ca   = metadata$Ca.µg.mL,
             Mg   = metadata$Mg.µg.ml,
@@ -460,7 +460,9 @@ piper_data <- transform_piper_data(Ca   = data$Ca,
                                    SO4  = data$SO4,
                                    name = data$Site_name)
 ggplot_piper() + geom_point(data=piper_data,
-                            aes(x,y, colour=factor(observation)))+
+                            aes(x,y, 
+                                colour=factor(observation),
+                                size = 5))+
   scale_color_manual(values = colorRampPalette(brewer.pal(12, "Paired"))(13))
 ```
 
@@ -1171,10 +1173,14 @@ ps_cap_r_norm_Month_cat<-plot_grid(final_CAP_norm_april_taxa_sig_plot_a12,
                                    final_CAP_norm_december_taxa_sig_plot_a12,
                                    align = 'v', ncol = 1)
 ```
-```{r, fig.height=14, fig.width=14}
+```{r echo=FALSE, fig.height=14, fig.width=14}
 ps_cap_r_norm_Month_cat
 ```
 
+
+```{r echo=FALSE, fig.height=7, fig.width=14}
+ps.b.r.CAP_norm_sig.plot
+```
 It seems K, EC, Na and temperature influenced a subset of the microbial community mostly composed of Gamma- and Epsilonproteobacteria as well as Omnitrophica plus others across the year. Omintrophica and Parcubacteria seem to appear in different numbers across the year within this cluster.
 
 So who defines this cluster? Let's select the corresponding points of the CAP and figure out.
