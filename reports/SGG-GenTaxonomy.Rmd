@@ -29,6 +29,7 @@ library(cowplot)
 library(plotly)
 library(lemon)
 library(randomcoloR)
+library(scales)
 ```
 
 ```{r load SV data, echo=FALSE}
@@ -122,27 +123,74 @@ ps.b.deep_128.glom.df$Genus[is.na(ps.b.deep_128.glom.df$Genus) & ps.b.deep_128.g
 ps.b.deep_128.glom.df$Genus[is.na(ps.b.deep_128.glom.df$Genus) & ps.b.deep_128.glom.df$Family=="Hydrogenophilaceae"] <- "Unc. Hydrogenophilaceae"
 ps.b.deep_128.glom.df$Genus[ps.b.deep_128.glom.df$Phylum=="Omnitrophica"] <- "Omnitrophica"
 ps.b.deep_128.glom.df$Genus[ps.b.deep_128.glom.df$Phylum=="Parcubacteria"] <- "Parcubacteria"
+ps.b.deep_128.glom.df$Site.name = factor(ps.b.deep_128.glom.df$Site.name, 
+                                                       levels = c("Celynen North","Crumlin Navigation","Six Bells",
+                                                                  "Blaenavon","Cefn Hengoed","Dinas","Glyncastle",
+                                                                  "Morlais","Mountain Gate","Taff Bargoed","Ynysarwed","Lindsay",
+                                                                  "Taffs Well"))
+ps.b.r.glom.psdf.unk.glom <- tax_glom(ps.b.r, taxrank = 'Genus', NArm = FALSE)
+ps.b.r.glom.psdf.unk <- data.table(psmelt(ps.b.r.glom.psdf.unk.glom))
+levels(ps.b.r.glom.psdf.unk$Phylum)<-c(levels(ps.b.r.glom.psdf.unk$Phylum),
+                                     c("Unknown Phyla"))
+levels(ps.b.r.glom.psdf.unk$Genus)<-c(levels(ps.b.r.glom.psdf.unk$Genus),
+                                     c("Unknown Phyla"))
+ps.b.r.glom.psdf.unk$Phylum[is.na(ps.b.r.glom.psdf.unk$Phylum)]="Unknown Phyla"
+ps.b.r.glom.psdf.unk$Genus[ ps.b.r.glom.psdf.unk$Phylum=="Unknown Phyla"] <- "Unknown Phyla"
+ps.b.r.glom.psdf.unkonly<-subset(ps.b.r.glom.psdf.unk, 
+                                                  Phylum %in% c("Unknown Phyla"))
+ps.b.deep_128.glom.df.unkonly <- rbind(ps.b.deep_128.glom.df, ps.b.r.glom.psdf.unkonly)
 
-ps.b.deep_128.glom.df.plot<-ggplot(ps.b.deep_128.glom.df[Abundance > 0.03], 
-                                        aes(x = Genus, y = Abundance, fill = Genus)) + 
+gen_cols = colorRampPalette(brewer.pal(8, "Accent"))(15)
+gen_cols_c = gsub("#DD2456", "#9c183c", gen_cols)
+gen_cols_c = gsub("#A0BAAC", "#749a85", gen_cols_c)
+gen_cols_c = gsub("#E4B9A3", "#489fca", gen_cols_c)
+gen_cols_c = gsub("#FEEB93", "#f58e03", gen_cols_c)
+gen_cols_c = gsub("#FDC988", "#c988fd", gen_cols_c)
+gen_cols_c = gsub("#D1DD9E", "#b6c965", gen_cols_c)
+gen_cols_c = gsub("#FDC086", "#fc993b", gen_cols_c)
+
+ps.b.deep_128.glom.df.unkonly.f<-subset(ps.b.deep_128.glom.df.unkonly, 
+                                                  Abundance > 0.03)
+ps.b.deep_128.glom.df.unkonly.f$Genus = factor(ps.b.deep_128.glom.df.unkonly.f$Genus, 
+                                                       levels = c("Gallionella","Sideroxydans","Ferriphaselus","Unc. Gallionellaceae",
+                                                                  "Sulfurovum","Sulfurimonas","Sulfuricurvum","Sulfuricella","Sulfuriferula",
+                                                                  "Pseudomonas","Thiothrix","Unc. Hydrogenophilaceae",
+                                                                  "Parcubacteria","Omnitrophica",
+                                                                  "Unknown Phyla"))
+
+ps.b.deep_128.glom.df.plot <- ggplot(ps.b.deep_128.glom.df.unkonly.f, 
+                                     aes(x = Genus, y = Abundance, fill = Genus)) + 
   facet_grid(Site.name~Month)+
+  geom_hline(yintercept = 0.5,
+           color="white",
+           linetype="solid") +
   geom_point(aes(color=Genus, fill=Genus,
-                 size=Abundance)) + 
+                 size=Abundance), alpha = 0.8) +
+  scale_y_continuous(breaks = c(0.25,0.75),
+                     limits = c(0,1),
+                     labels = scales::percent) +
   theme(axis.title.x = element_blank(),
         axis.text.x = element_blank(),
         axis.ticks.x = element_blank(),
         strip.text.y = element_text(angle = 0),
+        strip.placement = "outside",
+        strip.background = element_rect(colour = "gray88",
+                                        fill = "gray88"),
         panel.background = element_rect(colour = "gray91",
                                        fill = "gray91"),
-        panel.grid.major.y = element_line(color = "white")) + 
-  guides(fill = guide_legend(nrow = 16)) +
+        panel.grid.major.y = element_line(color = "white"),
+        legend.title = element_text(face = "bold")) + 
+  guides(fill = guide_legend(nrow = 16),
+         shape = NULL,
+         size = NULL,
+         alpha = NULL) +
   ylab("Relative Abundance\n") +
-  scale_fill_manual(values = colorRampPalette(brewer.pal(12, "Paired"))(14), 
+  scale_fill_manual(values = gen_cols_c,
                     na.value = "gray48") +
-  scale_color_manual(values = colorRampPalette(brewer.pal(12, "Paired"))(14), 
+  scale_color_manual(values = gen_cols_c,
                     na.value = "gray48")
 ```
-```{r fig.width=14, message=FALSE, warning=FALSE, fig.height=16}
+```{r fig.width=14, message=FALSE, warning=FALSE, fig.height=11}
 ps.b.deep_128.glom.df.plot
 ```
 

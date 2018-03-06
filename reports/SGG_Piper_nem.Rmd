@@ -1,0 +1,306 @@
+---
+title: "SGG Piper"
+author: "André Soares"
+date: "1 March 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r initial loadings, message=FALSE, warning=FALSE, include=FALSE}
+library(dada2); packageVersion("dada2")
+library(ggplot2); packageVersion("ggplot2")
+library(phyloseq); packageVersion("phyloseq")
+library(data.table); packageVersion("data.table")
+library(DESeq2); packageVersion("DESeq2")
+library(dplyr)
+library(plyr)
+library(magrittr)
+library(RColorBrewer)
+library(phangorn)
+library(DECIPHER)
+library("structSSI")
+library(ips)
+library(msa)
+library(picante)
+library(igraph)
+library(cowplot)
+library(plotly)
+library(lemon)
+library(GGally)
+library(randomcoloR)
+library(hydrogeo)
+library(knitr)
+```
+
+Just so this looks like what I'm doing in the main script, including complete SGG data import and extracting metadata from the SGG phyloseq object.
+
+```{r}
+SGG_SVt = readRDS("/media/andre/B2F8C9A0F8C962E9/SGG_16S_analysis/SGG_16S_data_trimmed_DADA2_table/seqtab_final.rds")
+SGG_Tax = readRDS("/media/andre/B2F8C9A0F8C962E9/SGG_16S_analysis/SGG_16S_data_trimmed_DADA2_table/tax_final.rds")
+sgg_metadata<-read.csv("/media/andre/B2F8C9A0F8C962E9/SGG_16S_analysis/SGG_16S_metadata/SGG_metadata.csv", header=TRUE)
+order<-rownames(SGG_SVt)
+sgg_metadata_ord<-sgg_metadata[match(order, sgg_metadata$Sample_Code),]
+rownames(sgg_metadata_ord) <- sgg_metadata_ord$Sample_Code
+ps <- phyloseq(otu_table(SGG_SVt, taxa_are_rows=FALSE),
+               sample_data(sgg_metadata_ord), 
+               tax_table(SGG_Tax))
+ps.a = subset_samples(ps, Site.name != "Taffs Well PUMPED")
+ps.b = subset_samples(ps.a, Sample_type != "Control")
+ps.b <- prune_taxa(taxa_sums(ps.b) > 0, ps.b)
+#order months
+sample_data(ps.b)$Month = factor(sample_data(ps.b)$Month, 
+                                 levels = c("April","August","December"))
+#to relative abundances
+ps.b = subset_taxa(ps.b, Kingdom %in% c("Archaea", "Bacteria"))
+ps.b.r <-  transform_sample_counts(ps.b, function(x) {x/sum(x)} ) 
+sample_data(ps.b.r)$Site.name = factor(sample_data(ps.b.r)$Site.name, 
+                                          levels = c("Blaenavon","Cefn Hengoed","Mountain Gate","Taff Bargoed",
+                                                     "Glyncastle","Dinas","Ynysarwed","Celynen North","Morlais",
+                                                     "Lindsay","Six Bells","Crumlin Navigation","Taffs Well"))
+```
+
+####1 - Checking metadata table and subsetting it to include only Ca, Mg, Na, K, Cl, $SO_4$.
+
+All are in $\mu g.mL^{-1}$ *i.e.* ppm.
+
+```{r main metadata}
+metadata<-sample_data(ps.b.r)
+
+ppm <- as.data.frame(list(
+            Ca   = metadata$Ca.µg.mL,
+            Mg   = metadata$Mg.µg.ml,
+            Na   = metadata$Na.µg.ml,
+            K    = metadata$K.µg.ml,
+            Cl   = metadata$Cl..µg.ml,
+            SO4  = metadata$SO4..µg.ml))
+#Quick look at the table in ug/mL.
+head(ppm)
+```
+
+A couple values are missing from Ca and Mg (not shown) so substituting those for the corresponding means of the two other values for that site in the corresponding month.
+
+```{r}
+meq <- ppm
+#correct some 'stuff'
+meq$Ca[is.na(meq$Ca)] <- 55.25
+meq$Mg[is.na(meq$Mg)] <- 36.9
+```
+
+####2 - Converting to $meq.L^{-1}$:
+
+1. Dividing each element in the column by their atomic weight to get $mM.L^{-1}.$
+2. Diving that by the normal valence to get $meq.L^{-1}.$.
+
+```{r}
+#division by atomic weight
+meq$Ca = meq$Ca/40.078
+meq$Mg = meq$Mg/24.305
+meq$Na = meq$Na/22.989769
+meq$K = meq$K/39.0983
+meq$Cl = meq$Cl/35.453
+meq$SO4 = meq$SO4/96.06
+
+#multiplication by valence
+meq$Ca = meq$Ca*2
+meq$Mg = meq$Mg*2
+meq$Na = meq$Na*1
+meq$K = meq$K*1
+meq$Cl = meq$Cl*1
+meq$SO4 = meq$SO4*2
+
+#miliequivalents per litre table.
+head(meq)
+```
+
+```HCO3``` is created as a column by subtracting the total anions (Cl, $SO_4$) from the total cations (Ca, Mg, Na, K).
+
+```{r}
+meq_pc <- meq
+totalCations <- meq_pc$Ca + meq_pc$Mg + meq_pc$Na + meq_pc$K
+totalAnions <- meq_pc$Cl + meq_pc$SO4
+#creating and HCO3 column
+meq_pc$HCO3 <- (totalCations-totalAnions)
+meq_pc$HCO3[meq_pc$HCO3<0] <- 0
+#miliequivalents per litre table now with HCO3
+head(meq_pc)
+```
+
+####3 - Normalising each column having in account total cation and anion sums (```totalCations```,```totalAnions```).
+
+```{r}
+meq_pc$Ca <- 100 * (meq_pc$Ca/totalCations)
+meq_pc$Mg <- 100 * (meq_pc$Mg/totalCations)
+meq_pc$Na <- 100 * (meq_pc$Na/totalCations)
+meq_pc$K <- 100 * (meq_pc$K/totalCations)
+
+#totalAnions_2 to include HCO3 as a cation in the sum.
+totalAnions_2 <- meq_pc$Cl + meq_pc$SO4 + meq_pc$HCO3
+meq_pc$Cl <- 100 * (meq_pc$Cl/totalAnions_2)
+meq_pc$SO4 <- 100 * (meq_pc$SO4/totalAnions_2)
+meq_pc$HCO3 <- 100 * (meq_pc$HCO3/totalAnions_2)
+
+#do all cation and anion rows sum to 100?
+#Cations
+100 %in% apply(meq_pc[, c("Ca", "Mg", "Na", "K")], 1, FUN = sum)
+#Anions
+100 %in% apply(meq_pc[, c("Cl", "SO4", "HCO3")], 1, FUN = sum)
+#Cool
+
+#final normalized miliequivalents per litre table with HCO3
+head(meq_pc)
+```
+
+####4 - Transforming data to x, y coordinates
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+transform_piper_data <- function(Mg, Ca, Cl,SO4, name=NULL){
+  if(is.null(name)){
+    name = rep(1:length(Mg),3)
+  } else {
+    name = rep(name,3)
+  }
+  y1 <- Mg * 0.86603
+  x1 <- 100*(1-(Ca/100) - (Mg/200))
+  y2 <- SO4 * 0.86603
+  x2 <-120+(100*Cl/100 + 0.5 * 100*SO4/100)
+  new_point <- function(x1, x2, y1, y2, grad=1.73206){
+    b1 <- y1-(grad*x1)
+    b2 <- y2-(-grad*x2)
+    M <- matrix(c(grad, -grad, -1,-1), ncol=2)
+    intercepts <- as.matrix(c(b1,b2))
+    t_mat <- -solve(M) %*% intercepts
+    data.frame(x=t_mat[1,1], y=t_mat[2,1])
+  }
+  np_list <- lapply(1:length(x1), function(i) new_point(x1[i], x2[i], y1[i], y2[i]))
+  npoints <- do.call("rbind",np_list)
+  data.frame(observation=name,x=c(x1, x2, npoints$x), y=c(y=y1, y2, npoints$y))
+}
+
+
+ggplot_piper <- function() {
+  library(ggplot2)
+  grid1p1 <<- data.frame(x1 = c(20,40,60,80), x2= c(10,20,30,40),y1 = c(0,0,0,0), y2 = c(17.3206,34.6412,51.9618, 69.2824))
+  grid1p2 <<- data.frame(x1 = c(20,40,60,80), x2= c(60,70,80,90),y1 = c(0,0,0,0), y2 = c(69.2824, 51.9618,34.6412,17.3206))
+  grid1p3 <<- data.frame(x1 = c(10,20,30,40), x2= c(90,80,70,60),y1 = c(17.3206,34.6412,51.9618, 69.2824), y2 = c(17.3206,34.6412,51.9618, 69.2824))
+  grid2p1 <<- grid1p1
+  grid2p1$x1 <- grid2p1$x1+120
+  grid2p1$x2 <- grid2p1$x2+120
+  grid2p2 <<- grid1p2
+  grid2p2$x1 <- grid2p2$x1+120
+  grid2p2$x2 <- grid2p2$x2+120
+  grid2p3 <<- grid1p3
+  grid2p3$x1 <- grid2p3$x1+120
+  grid2p3$x2 <- grid2p3$x2+120
+  grid3p1 <<- data.frame(x1=c(100,90, 80, 70),y1=c(34.6412, 51.9618, 69.2824, 86.603), x2=c(150, 140, 130, 120), y2=c(121.2442,138.5648,155.8854,173.2060))
+  grid3p2 <<- data.frame(x1=c(70, 80, 90, 100),y1=c(121.2442,138.5648,155.8854,173.2060), x2=c(120, 130, 140, 150), y2=c(34.6412, 51.9618, 69.2824, 86.603))
+  
+  p <- ggplot() +
+    ## left hand ternary plot
+    geom_segment(aes(x=0,y=0, xend=100, yend=0)) +
+    geom_segment(aes(x=0,y=0, xend=50, yend=86.603)) +
+    geom_segment(aes(x=50,y=86.603, xend=100, yend=0)) +
+    ## right hand ternary plot
+    geom_segment(aes(x=120,y=0, xend=220, yend=0)) +
+    geom_segment(aes(x=120,y=0, xend=170, yend=86.603)) +
+    geom_segment(aes(x=170,y=86.603, xend=220, yend=0)) +
+    ## Upper diamond
+    geom_segment(aes(x=110,y=190.5266, xend=60, yend=103.9236)) +
+    geom_segment(aes(x=110,y=190.5266, xend=160, yend=103.9236)) +
+    geom_segment(aes(x=110,y=17.3206, xend=160, yend=103.9236)) +
+    geom_segment(aes(x=110,y=17.3206, xend=60, yend=103.9236)) +
+    ## Add grid lines to the plots
+    geom_segment(aes(x=x1, y=y1, yend=y2, xend=x2), data=grid1p1, linetype = "dashed", size = 0.25, colour = "grey50") +
+    geom_segment(aes(x=x1, y=y1, yend=y2, xend=x2), data=grid1p2, linetype = "dashed", size = 0.25, colour = "grey50") +
+    geom_segment(aes(x=x1, y=y1, yend=y2, xend=x2), data=grid1p3, linetype = "dashed", size = 0.25, colour = "grey50") +
+    geom_segment(aes(x=x1, y=y1, yend=y2, xend=x2), data=grid2p1, linetype = "dashed", size = 0.25, colour = "grey50") +
+    geom_segment(aes(x=x1, y=y1, yend=y2, xend=x2), data=grid2p2, linetype = "dashed", size = 0.25, colour = "grey50") +
+    geom_segment(aes(x=x1, y=y1, yend=y2, xend=x2), data=grid2p3, linetype = "dashed", size = 0.25, colour = "grey50") +
+    geom_segment(aes(x=x1, y=y1, yend=y2, xend=x2), data=grid3p1, linetype = "dashed", size = 0.25, colour = "grey50") +
+    geom_segment(aes(x=x1, y=y1, yend=y2, xend=x2), data=grid3p2, linetype = "dashed", size = 0.25, colour = "grey50") +
+    ### Labels and grid values
+    #geom_text(aes(50,-10, label="Ca^2"), parse=T, size=4) + # Commented out, as parse=TRUE can cause issues
+
+    geom_text(aes(c(20,40,60,80),c(-5,-5,-5,-5), label=c(80, 60, 40, 20)), size=3) +
+    geom_text(aes(c(35,25,15,5),grid1p2$y2, label=c(80, 60, 40, 20)), size=3) +
+    geom_text(aes(c(95,85,75,65),grid1p3$y2, label=c(80, 60, 40, 20)), size=3) +
+    # geom_text(aes(17,50, label="Mg^2"), parse=T, angle=60, size=4) +
+    coord_equal(ratio=1)+  
+    geom_text(aes(17,50, label="Mg^2"), angle=60, size=4, parse=TRUE) +  
+    geom_text(aes(82.5,50, label="Na + K"), angle=-60, size=4) +
+   geom_text(aes(50,-10, label="Ca^2"), size=4, parse=TRUE) +
+    
+    
+    geom_text(aes(170,-10, label="Cl^-phantom()"), size=4, parse=TRUE) +
+    geom_text(aes(205,50, label="SO^4"), angle=-60, size=4, parse=TRUE) +
+    geom_text(aes(137.5,50, label="Alkalinity~as~HCO^3"), angle=60, size=4, parse=TRUE) +
+    geom_text(aes(72.5,150, label="SO^4~+~Cl^-phantom()"), angle=60, size=4, parse=TRUE) +
+    geom_text(aes(147.5,150, label="Ca^2~+~Mg^2"), angle=-60, size=4, parse=TRUE) + 
+
+    geom_text(aes(c(155,145,135,125),grid2p2$y2, label=c(20, 40, 60, 80)), size=3) +
+    geom_text(aes(c(215,205,195,185),grid2p3$y2, label=c(20, 40, 60, 80)), size=3) +
+    geom_text(aes(c(140,160,180,200),c(-5,-5,-5,-5), label=c(20, 40, 60, 80)), size=3) +
+    geom_text(aes(grid3p1$x1-5,grid3p1$y1, label=c(80, 60, 40, 20)), size=3) +
+    geom_text(aes(grid3p1$x2+5,grid3p1$y2, label=c(20, 40, 60, 80)), size=3) +
+    geom_text(aes(grid3p2$x1-5,grid3p2$y1, label=c(20, 40, 60, 80)), size=3) +
+    geom_text(aes(grid3p2$x2+5,grid3p2$y2, label=c(80, 60, 40, 20)), size=3) +
+    theme_bw() +
+    theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+          panel.border = element_blank(), axis.ticks = element_blank(),
+          axis.text.x = element_blank(), axis.text.y = element_blank(),
+          axis.title.x = element_blank(), axis.title.y = element_blank())
+  return(p)
+}
+```
+```{r}
+data <- as.data.frame(meq_pc)
+colnames(data) <- c("Ca","Mg","Na","K","Cl","SO4", "HCO3")
+data$Site_name <- metadata$Site.name
+
+piper_data <- transform_piper_data(Ca   = data$Ca,
+                                   Mg   = data$Mg,
+                                   Cl   = data$Cl,
+                                   SO4  = data$SO4,
+                                   name = data$Site_name)
+```
+
+####5 - Plotting the Piper diagram.
+
+Still have to find a way to define shape by Month.
+
+```{r, fig.width=18, fig.height=16}
+piper_cols = colorRampPalette(brewer.pal(8, "Dark2"))(13)
+piper_cols_c = gsub("#DD2456", "#9c183c", piper_cols)
+piper_cols_c = gsub("#A0BAAC", "#749a85", piper_cols_c)
+piper_cols_c = gsub("#E4B9A3", "#489fca", piper_cols_c)
+piper_cols_c = gsub("#FEEB93", "#f58e03", piper_cols_c)
+piper_cols_c = gsub("#FDC988", "#c988fd", piper_cols_c)
+piper_cols_c = gsub("#D1DD9E", "#b6c965", piper_cols_c)
+piper_cols_c = gsub("#FDC086", "#fc993b", piper_cols_c)
+
+sgg_piper <- ggplot_piper() + geom_point(data=piper_data,
+                            aes(x,y, 
+                                colour=factor(observation),
+                            alpha = 0.5),
+                            size = 7)+
+  scale_color_manual(name = "Site ID",
+                     values = piper_cols_c) +
+  theme(legend.position = "bottom",
+        legend.text = element_text(size = 15),
+        legend.title = element_text(size = 16,
+                                    face = "bold")) +
+  guides(colour = guide_legend(nrow = 3),
+         size = guide_legend(override.aes = element_blank()),
+         alpha = guide_legend(override.aes = element_blank()))
+
+  sgg_piper
+```
+
+Contrast that to this Piper diagram showing the distribution of the four main groundwater types in the South Wales Coal Measures Group (after Ineson, 1967).
+
+```{r, out.height="60%"}
+bgs_piper = "/media/andre/B2F8C9A0F8C962E9/SGG_16S_analysis/SGG_16S_R/P859276.jpg"
+include_graphics(bgs_piper)
+```
