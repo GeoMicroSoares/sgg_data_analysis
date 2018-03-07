@@ -1,0 +1,251 @@
+---
+title: "SGG - How do co-occurrence trends look in SGG?"
+author: "André Soares"
+date: "8 January 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r initial loadings, message=FALSE, warning=FALSE, include=FALSE}
+library(dada2); packageVersion("dada2")
+library(ggplot2); packageVersion("ggplot2")
+library(phyloseq); packageVersion("phyloseq")
+library(data.table); packageVersion("data.table")
+library(DESeq2); packageVersion("DESeq2")
+library(dplyr)
+library(plyr)
+library(magrittr)
+library(RColorBrewer)
+library(phangorn)
+library(DECIPHER)
+library("structSSI")
+library(ips)
+library(msa)
+library(picante)
+library(igraph)
+library(cowplot)
+library(plotly)
+library(lemon)
+library(GGally)
+library(randomcoloR)
+```
+
+```{r load SV data, echo=FALSE}
+SGG_SVt = readRDS("/media/andre/B2F8C9A0F8C962E9/SGG_16S_analysis/SGG_16S_data_trimmed_DADA2_table/seqtab_final.rds")
+SGG_Tax = readRDS("/media/andre/B2F8C9A0F8C962E9/SGG_16S_analysis/SGG_16S_data_trimmed_DADA2_table/tax_final.rds")
+sgg_metadata<-read.csv("/media/andre/B2F8C9A0F8C962E9/SGG_16S_analysis/SGG_16S_metadata/SGG_metadata.csv", header=TRUE)
+order<-rownames(SGG_SVt)
+sgg_metadata_ord<-sgg_metadata[match(order, sgg_metadata$Sample_Code),]
+rownames(sgg_metadata_ord) <- sgg_metadata_ord$Sample_Code
+ps <- phyloseq(otu_table(SGG_SVt, taxa_are_rows=FALSE),
+               sample_data(sgg_metadata_ord), 
+               tax_table(SGG_Tax))
+ps.a = subset_samples(ps, Site.name != "Taffs Well PUMPED")
+ps.b = subset_samples(ps.a, Sample_type != "Control")
+ps.b <- prune_taxa(taxa_sums(ps.b) > 0, ps.b)
+#order months
+sample_data(ps.b)$Month = factor(sample_data(ps.b)$Month, 
+                                 levels = c("April","August","December"))
+#to relative abundances
+ps.b = subset_taxa(ps.b, Kingdom %in% c("Archaea", "Bacteria"))
+ps.b.r <-  transform_sample_counts(ps.b, function(x) {x/sum(x)} ) 
+```
+
+How much do samples in the SGG dataset share taxa?
+
+```{r main metadata, message=FALSE, warning=FALSE}
+ps.b.r.f = filter_taxa(ps.b.r, function(x) sum(x) > .01, TRUE)
+
+#Just a quick look at numbers of phyla, classes
+sv.phyl<-as.data.frame(table(tax_table(ps.b.r.f)[, "Phylum"], exclude = NULL))
+length(unique(sv.phyl$Var1))
+
+# taxa_names(ps.b.r.f) <- paste("SV-", 1:ntaxa(ps.b.r.f), sep="")
+ps.b.r.f.jsd <- phyloseq::distance(ps.b.r.f, method = "jaccard")
+
+#samples
+
+sample_net.ig <- make_network(ps.b.r.f, max.dist=0.8)
+
+V(sample_net.ig)$Site.name=as.character(sample_data(ps.b.r.f)$Site.name[match(V(sample_net.ig)$name,
+                                  sample_data(ps.b.r.f)$Sample_Code)])
+V(sample_net.ig)$Month=as.character(sample_data(ps.b.r.f)$Month[match(V(sample_net.ig)$name,
+                                  sample_data(ps.b.r.f)$Sample_Code)])
+#this is probably wrong, but will do for now (?)
+E(sample_net.ig)$weight <- strength(sample_net.ig, mode = "all")
+E(sample_net.ig)$weight <- E(sample_net.ig)$weight/18
+
+spl_net_cols = colorRampPalette(brewer.pal(8, "Dark2"))(13)
+spl_net_cols_c = gsub("#DD2456", "#9c183c", spl_net_cols)
+spl_net_cols_c = gsub("#A0BAAC", "#749a85", spl_net_cols_c)
+spl_net_cols_c = gsub("#E4B9A3", "#489fca", spl_net_cols_c)
+spl_net_cols_c = gsub("#FEEB93", "#f58e03", spl_net_cols_c)
+spl_net_cols_c = gsub("#FDC988", "#c988fd", spl_net_cols_c)
+spl_net_cols_c = gsub("#D1DD9E", "#b6c965", spl_net_cols_c)
+spl_net_cols_c = gsub("#FDC086", "#fc993b", spl_net_cols_c)
+
+sample_net.ig.plot<-ggnet2(sample_net.ig, 
+                           color="Site.name", shape="Month", 
+                           size=5, alpha = 0.8, 
+                           edge.size = "weight") +
+    scale_color_manual(values = spl_net_cols_c) +
+  theme(legend.text = element_text(size=10))
+```
+```{r message=FALSE, warning=FALSE, fig.height=6, fig.width=10}
+sample_net.ig.plot
+```
+
+Sample-wise it seems Glyncastle, Taffs Well, Lindsay and Mountain Gate have non-co-occurring taxonomic profiles i.e. not a lot of their SVs occur outside those sites. Morlais and Ynysarwed seem to be connected by one of Ynysarwed's April samples. Not sure what that means.
+
+Very clearly, Crumlin Navigation, Six Bells and Celynen North are depicted as sharing large amounts of taxa, being closely related to Dinas. In its turn, Dinas seems to be connected to Blaenavon which in turn shares taxa with Cefn Hengoed and Taff Bargoed.
+
+```{r}
+#save this for when issue https://github.com/joey711/phyloseq/issues/885 is answered
+taxa_net<-plot_net(ps.b.r.f, maxdist = 0.8, type="taxa", 
+         laymeth="fruchterman.reingold",
+         rescale = TRUE,
+         point_alpha = 0.6)
+# taxa_net
+
+#Messy, let's subset the dataset to the most important phyla
+ps.b.r.f.topphyla = subset_taxa(ps.b.r.f, Phylum %in% c("Proteobacteria", "Omnitrophica", "Parcubacteria"))
+
+sv.phyl.topphyla<-as.data.frame(table(tax_table(ps.b.r.f.topphyla)[, "Class"], exclude = NULL))
+length(unique(sv.phyl.topphyla$Var1))
+
+taxa_net_cols = colorRampPalette(brewer.pal(12, "Paired"))(17)
+taxa_net_cols_c = gsub("#DD2456", "#9c183c", taxa_net_cols)
+taxa_net_cols_c = gsub("#A0BAAC", "#749a85", taxa_net_cols_c)
+taxa_net_cols_c = gsub("#E4B9A3", "#489fca", taxa_net_cols_c)
+taxa_net_cols_c = gsub("#FEEB93", "#f58e03", taxa_net_cols_c)
+taxa_net_cols_c = gsub("#FDC988", "#c988fd", taxa_net_cols_c)
+taxa_net_cols_c = gsub("#D1DD9E", "#b6c965", taxa_net_cols_c)
+taxa_net_cols_c = gsub("#FDC086", "#fc993b", taxa_net_cols_c)
+
+taxa_net<-plot_net(ps.b.r.f.topphyla, maxdist = 0.4, type="taxa", 
+         laymeth="fruchterman.reingold",
+         color = "Class",
+         rescale = TRUE) +
+  scale_color_manual(values = taxa_net_cols_c, na.value="gray48")
+```
+```{r message=FALSE, warning=FALSE, fig.height=6, fig.width=10}
+taxa_net
+```
+
+Not a lot to be taken from this... Taxa network doesn't seem to relate with the sample network.
+
+Betaproteobacteria seems to be spread all around the dataset, forming relatively central clusters. Epsilonproteobacteria form what seem to be two less central small clusters. Deltaproteobacteria, less represented in the overall profiles seem, along with largely unclassified phyla and Omnitrophica classes.
+
+In the first network though, we saw two strong sub-clusters of samples. Let's subset the dataset and create new networks:
+
+####1. Morlais and Ynysarwed
+
+```{r message=FALSE, warning=FALSE}
+ps.b.r.f.topphyla.1 = subset_samples(ps.b.r.f.topphyla, 
+                                    Site.name == "Morlais" | Site.name == "Ynysarwed")
+ps.b.r.f.topphyla.1 <- prune_taxa(taxa_sums(ps.b.r.f.topphyla.1) > 0, ps.b.r.f.topphyla.1)
+
+sv.phyl.topphyla.1<-as.data.frame(table(tax_table(ps.b.r.f.topphyla.1)[, "Class"], exclude = NULL))
+length(unique(sv.phyl.topphyla.1$Var1))
+
+taxa_net_cols_1 = colorRampPalette(brewer.pal(12, "Paired"))(15)
+taxa_net_cols_1_c = gsub("#DD2456", "#9c183c", taxa_net_cols_1)
+taxa_net_cols_1_c = gsub("#A0BAAC", "#749a85", taxa_net_cols_1_c)
+taxa_net_cols_1_c = gsub("#E4B9A3", "#489fca", taxa_net_cols_1_c)
+taxa_net_cols_1_c = gsub("#FEEB93", "#f58e03", taxa_net_cols_1_c)
+taxa_net_cols_1_c = gsub("#FDC988", "#c988fd", taxa_net_cols_1_c)
+taxa_net_cols_1_c = gsub("#D1DD9E", "#b6c965", taxa_net_cols_1_c)
+taxa_net_cols_1_c = gsub("#FDC086", "#fc993b", taxa_net_cols_1_c)
+
+taxa_net.1<-plot_net(ps.b.r.f.topphyla.1, maxdist = 0.4, type="taxa", 
+         laymeth="fruchterman.reingold",
+         color = "Class",
+         rescale = TRUE) +
+  scale_color_manual(values = taxa_net_cols_1_c, na.value="gray48")
+```
+```{r message=FALSE, warning=FALSE, fig.height=6, fig.width=10}
+taxa_net.1
+```
+
+A core mostly of Betaproteobacteria makes up the shared taxa between Morlais and Ynysarwed.
+
+####2. Crumlin Navigation, Six Bells, Celynen North, Dinas, Blaenavon, Cefn Hengoed and Taff Bargoed
+
+```{r}
+ps.b.r.f.topphyla.2 = subset_samples(ps.b.r.f.topphyla, 
+                                    Site.name == "Crumlin Navigation" | Site.name == "Six Bells" | Site.name == "Celynen North")
+ # | Site.name == "Dinas" | Site.name == "Blaenavon" | Site.name == "Cefn Hengoed" | Site.name == "Taff Bargoed"
+ps.b.r.f.topphyla.2 <- prune_taxa(taxa_sums(ps.b.r.f.topphyla.2) > 0, ps.b.r.f.topphyla.2)
+# ps.b.r.f.topphyla.2 = filter_taxa(ps.b.r.f.topphyla.2, function(x) sum(x) > .03, TRUE)
+
+taxa_net_cols_c2 = gsub("#E19B78", "#d3399f", taxa_net_cols_c)
+
+sv.phyl.topphyla.2<-as.data.frame(table(tax_table(ps.b.r.f.topphyla.2)[, "Class"], exclude = NULL))
+length(unique(sv.phyl.topphyla.2$Var1))
+
+taxa_net.2<-plot_net(ps.b.r.f.topphyla.2, maxdist = 0.4, type="taxa", 
+         laymeth="fruchterman.reingold",
+         color = "Class",
+         rescale = TRUE) +
+  scale_color_manual(values = taxa_net_cols_c2, na.value="gray48")
+```
+```{r message=FALSE, warning=FALSE, fig.height=6, fig.width=10}
+taxa_net.2
+```
+
+WOW THIS SOLVES ALL MY DOUBTS.
+
+What taxa has been seen in all three samples though?
+
+```{r}
+ps.b.r.f.topphyla.2.x3.keep = filter_taxa(ps.b.r.f.topphyla.2, function(x) sum(x > 2))
+ps.b.r.f.topphyla.2.x3.p = prune_taxa(names(ps.b.r.f.topphyla.2.x3.keep), ps.b.r.f.topphyla.2)
+
+# agglomerate taxa
+ps.b.r.f.topphyla.2.glom <- tax_glom(ps.b.r.f.topphyla.2, taxrank = 'Order', NArm = FALSE)
+ps.b.r.f.topphyla.2.glom.psdf <- data.table(psmelt(ps.b.r.f.topphyla.2.glom))
+ps.b.r.f.topphyla.2.glom.psdf$Phylum <- as.character(ps.b.r.f.topphyla.2.glom.psdf$Phylum)
+ps.b.r.f.topphyla.2.glom.psdf.plot<-ggplot(ps.b.r.f.topphyla.2.glom.psdf[Abundance > 0], 
+                                    aes(x = Site.name, y = Abundance/3, fill = Order)) + 
+  facet_grid(Month~.) +
+  geom_bar(stat = "identity") +
+  theme(axis.title.x = element_blank(),
+        axis.text.x = element_text(angle = 45, hjust = 1)) + 
+  guides(fill = guide_legend(keywidth = 1, keyheight = 1)) +
+  ylab("Relative Abundance\n")
+
+ps.b.r.f.topphyla.2.glom.psdf.plot
+```
+
+Quickly, how about the whole dataset and the taxa present in > 50% of the samples?
+
+```{r}
+ps.b.r.x13.keep = filter_taxa(ps.b, function(x) sum(x > 1) > (0.5*length(x)), TRUE)
+
+# ps.b.r.x13.glom <- tax_glom(ps.b.r.x13.keep, taxrank = 'Order', NArm = FALSE)
+# ps.b.r.x13.glom.psdf <- data.table(psmelt(ps.b.r.x13.glom))
+# ps.b.r.x13.glom.psdf$Phylum <- as.character(ps.b.r.x13.glom.psdf$Phylum)
+# ps.b.r.x13.glom.psdf.plot<-ggplot(ps.b.r.x13.glom.psdf[Abundance > 0], 
+#                                     aes(x = Site.name, y = Abundance/3, fill = Order)) + 
+#   facet_grid(Month~.) +
+#   geom_bar(stat = "identity") +
+#   theme(axis.title.x = element_blank(),
+#         axis.text.x = element_text(angle = 45, hjust = 1)) + 
+#   guides(fill = guide_legend(keywidth = 1, keyheight = 1)) +
+#   ylab("Relative Abundance\n")
+# 
+# ps.b.r.x13.glom.psdf.plot
+
+taxa_net.3<-plot_net(ps.b.r.x13.keep, maxdist = 0.6, type="taxa", 
+         laymeth="fruchterman.reingold",
+         shape = "Phylum",
+         color = "Genus",
+         rescale = TRUE) +
+  scale_color_manual(values = taxa_net_cols_c2, na.value="gray48") +
+  scale_shape_manual(values = c(15,16,17,18))
+taxa_net.3
+```
+
+this is getting stupid now.
