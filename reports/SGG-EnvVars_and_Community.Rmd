@@ -214,6 +214,152 @@ do.so4.plot
 
 Yep-ish.
 
+Now for our metals. Do they have any apparent influence on our sites? They may just model how Gallionella and Sideroxydans interact for example.
+
+Subsetting metada to only hold metals in the data frame.
+
+```{r}
+metadata_metals = metadata[, c("Site.name", "Month", "K.µg.ml", "Mg.µg.ml", "Na.µg.ml", "X6.Li.ng.ml", "X9.Be.ng.ml", "X11.B.ng.ml",           "X27.Al.ng.ml",      "X45.Sc.ng.ml",      "X47.Ti.ng.ml",      "X51.V..He..ng.ml", "X52.Cr..He..ng.ml", "X59.Co.ng.ml",      "X60.Ni.ng.ml", "X63.Cu.ng.ml",      "X68.Zn.ng.ml",      "X69.Ga.ng.ml",      "X74.Ge.ng.ml", "X75.As..He..ng.ml", "X78.Se.ng.ml",      "X85.Rb.ng.ml",            "X89.Y.ng.ml",       "X90.Zr.ng.ml", "X93.Nb.ng.ml",      "X97.Mo.ng.ml",      "X98.Mo.ng.ml",      "X111.Cd.ng.ml",     "X114.Cd.ng.ml", "X115.In.ng.ml",     "X123.Sb.ng.ml",     "X125.Te.ng.ml", "X133.Cs.ng.ml",     "X135.Ba.ng.ml", "X139.La.ng.ml",     "X140.Ce.ng.ml",     "X141.Pr.ng.ml",     "X146.Nd.ng.ml",     "X147.Sm.ng.ml",    
+"X153.Eu.ng.ml",     "X157.Gd.ng.ml",     "X159.Tb.ng.ml",     "X163.Dy.ng.ml",     "X165.Ho.ng.ml", "X166.Er.ng.ml",     "X169.Tm.ng.ml",     "X172.Yb.ng.ml",     "X175.Lu.ng.ml",     "X181.Ta.ng.ml", "X182.W.ng.ml",      "X200.Hg.ng.ml",     "X201.Hg.ng.ml",     "X202.Hg.ng.ml",     "X205.Tl.ng.ml", "X206.Pb.ng.ml",     "X207.Pb.ng.ml",     "X209.Bi.ng.ml",     "X232.Th.ng.ml",     "X238.U.ng.ml", "X55.Mn.ng.ml", "X88.Sr.ng.ml")]
+sort(round(colMeans(metadata_metals[,3:ncol(metadata_metals)], na.rm = TRUE), digits = 5))
+```
+
+Let's split the data then: low, low-medium, medium and high values.
+
+```{r fig.height=14, fig.width=16, message=FALSE, warning=FALSE}
+metadata_low_metals = metadata[, c("Site.name", "Month","Time_point", "X175.Lu.ng.ml", "X169.Tm.ng.ml", "X114.Cd.ng.ml", "X159.Tb.ng.ml", "X165.Ho.ng.ml", "X209.Bi.ng.ml", "X111.Cd.ng.ml", "X172.Yb.ng.ml", "X166.Er.ng.ml", "X205.Tl.ng.ml", "X181.Ta.ng.ml", "X74.Ge.ng.ml", "X153.Eu.ng.ml", "X202.Hg.ng.ml", "X201.Hg.ng.ml", "X123.Sb.ng.ml", "X200.Hg.ng.ml", "X163.Dy.ng.ml", "X147.Sm.ng.ml", "X125.Te.ng.ml", "X157.Gd.ng.ml", "X115.In.ng.ml", "X9.Be.ng.ml", "X141.Pr.ng.ml", "X52.Cr..He..ng.ml", "X232.Th.ng.ml", "X51.V..He..ng.ml", "X146.Nd.ng.ml", "X133.Cs.ng.ml", "X182.W.ng.ml", "X90.Zr.ng.ml", "X89.Y.ng.ml", "X238.U.ng.ml", "X93.Nb.ng.ml", "X139.La.ng.ml", "X97.Mo.ng.ml", "X98.Mo.ng.ml", "X140.Ce.ng.ml", "X47.Ti.ng.ml", "X45.Sc.ng.ml")]
+
+metadata_low_metals_long <- melt(metadata_low_metals, 
+                             id=c("Site.name","Month","Time_point"))
+
+metadata_low_metals_long$Site.name = factor(metadata_low_metals_long$Site.name, 
+                                                       levels = c("Celynen North","Crumlin Navigation","Six Bells",
+                                                                  "Blaenavon","Cefn Hengoed","Dinas","Glyncastle",
+                                                                  "Morlais","Mountain Gate","Taff Bargoed","Ynysarwed","Lindsay",
+                                                                  "Taffs Well"))
+numbers_low <- length(unique(metadata_low_metals_long$variable))
+low_cols = colorRampPalette(brewer.pal(12, "Paired"))(41)
+
+metadata_low_metals_long_plot<-ggplot(metadata_low_metals_long, 
+                        aes(x=Site.name, y=value,
+                            fill=variable, color=variable)) +
+  geom_point(aes(fill=variable, color=variable, alpha = 0.5),
+             size=4,
+             position = position_dodge(width=0.5)) +
+  geom_line(aes(fill=variable, color=variable, 
+                group=variable, alpha=0.5)) +
+  facet_grid(Month~.) +
+  scale_y_log10() +
+  scale_color_manual(values=low_cols) +
+  scale_fill_manual(values=low_cols) +
+  theme(axis.title.x=element_blank(),
+        axis.title.y = element_text(size=14),
+        axis.text.x = element_text(angle = 35, hjust = 1, size= 14),
+        axis.text.y = element_text(size=12)) +
+  labs(y="Concentrations in ppm")
+metadata_low_metals_long_plot
+```
+
+Hmm.
+
+Low-medium now.
+
+```{r fig.height=14, fig.width=16, message=FALSE, warning=FALSE}
+metadata_low_medium_metals = metadata[, c("Site.name", "Month", "X63.Cu.ng.ml", "X69.Ga.ng.ml", "X78.Se.ng.ml", "X206.Pb.ng.ml", "X207.Pb.ng.ml", "X75.As..He..ng.ml", "X59.Co.ng.ml")]
+metadata_low_medium_metals_long <- melt(metadata_low_medium_metals, 
+                             id=c("Site.name","Month"))
+metadata_low_medium_metals_long$Site.name = factor(metadata_low_medium_metals_long$Site.name, 
+                                                       levels = c("Celynen North","Crumlin Navigation","Six Bells",
+                                                                  "Blaenavon","Cefn Hengoed","Dinas","Glyncastle",
+                                                                  "Morlais","Mountain Gate","Taff Bargoed","Ynysarwed","Lindsay",
+                                                                  "Taffs Well"))
+numbers_low_medium <- length(unique(metadata_low_medium_metals_long$variable))
+low_medium_cols = colorRampPalette(brewer.pal(12, "Paired"))(numbers_low_medium)
+
+metadata_low_medium_metals_long_plot<-ggplot(metadata_low_medium_metals_long, 
+                        aes(x=Site.name, y=value)) +
+  geom_point(aes(fill=variable, color=variable),
+             size=4,
+             position = position_dodge(width=0.5)) +
+  geom_line(aes(fill=variable, color=variable, 
+                group=variable, alpha=0.5)) +
+  facet_grid(Month~.) +
+  # scale_y_sqrt() +
+  scale_color_manual(values=low_medium_cols) +
+  scale_fill_manual(values=low_medium_cols) +
+  theme(axis.title.x=element_blank(),
+        axis.title.y = element_text(size=14),
+        axis.text.x = element_text(angle = 35, hjust = 1, size= 14),
+        axis.text.y = element_text(size=12)) +
+  labs(y="Concentrations in ppm")
+metadata_low_medium_metals_long_plot
+```
+
+Hmm.
+
+Medium values.
+
+```{r fig.height=14, fig.width=16, message=FALSE, warning=FALSE}
+metadata_medium_metals = metadata[, c("Site.name", "Month", "X68.Zn.ng.ml", "X85.Rb.ng.ml", "X60.Ni.ng.ml", "X206.Pb.ng.ml", "K.µg.ml", "Mg.µg.ml", "X27.Al.ng.ml", "X11.B.ng.ml", "X135.Ba.ng.ml", "X6.Li.ng.ml", "Na.µg.ml")]
+metadata_medium_metals_long <- melt(metadata_medium_metals, 
+                             id=c("Site.name","Month"))
+metadata_medium_metals_long$Site.name = factor(metadata_medium_metals_long$Site.name, 
+                                                       levels = c("Celynen North","Crumlin Navigation","Six Bells",
+                                                                  "Blaenavon","Cefn Hengoed","Dinas","Glyncastle",
+                                                                  "Morlais","Mountain Gate","Taff Bargoed","Ynysarwed","Lindsay",
+                                                                  "Taffs Well"))
+numbers_medium <- length(unique(metadata_medium_metals_long$variable))
+medium_cols = colorRampPalette(brewer.pal(12, "Paired"))(numbers_medium)
+metadata_medium_metals_long_plot<-ggplot(metadata_medium_metals_long, 
+                        aes(x=Site.name, y=value)) +
+  geom_point(aes(fill=variable, color=variable),
+             size=4,
+             position = position_dodge(width=0.5)) +
+  geom_line(aes(fill=variable, color=variable, 
+                group=variable, alpha=0.5)) +
+  facet_grid(Month~.) +
+  # scale_y_sqrt() +
+  scale_color_manual(values=medium_cols) +
+  scale_fill_manual(values=medium_cols) +
+  theme(axis.title.x=element_blank(),
+        axis.title.y = element_text(size=14),
+        axis.text.x = element_text(angle = 35, hjust = 1, size= 14),
+        axis.text.y = element_text(size=12)) +
+  labs(y="Concentrations in ppm")
+metadata_medium_metals_long_plot
+```
+
+High values.
+
+```{r fig.height=14, fig.width=16, message=FALSE, warning=FALSE}
+metadata_high_metals = metadata[, c("Site.name", "Month", "X88.Sr.ng.ml", "X55.Mn.ng.ml")]
+metadata_high_metals_long <- melt(metadata_high_metals, 
+                             id=c("Site.name","Month"))
+metadata_high_metals_long$Site.name = factor(metadata_high_metals_long$Site.name, 
+                                                       levels = c("Celynen North","Crumlin Navigation","Six Bells",
+                                                                  "Blaenavon","Cefn Hengoed","Dinas","Glyncastle",
+                                                                  "Morlais","Mountain Gate","Taff Bargoed","Ynysarwed","Lindsay",
+                                                                  "Taffs Well"))
+numbers_high <- length(unique(metadata_high_metals_long$variable))
+high_cols = colorRampPalette(brewer.pal(12, "Paired"))(numbers_high)
+metadata_high_metals_long_plot<-ggplot(metadata_high_metals_long, 
+                        aes(x=Site.name, y=value)) +
+  geom_point(aes(fill=variable, color=variable),
+             size=4,
+             position = position_dodge(width=0.5)) +
+  geom_line(aes(fill=variable, color=variable, 
+                group=variable, alpha=0.5)) +
+  facet_grid(Month~.) +
+  scale_color_manual(values=high_cols) +
+  scale_fill_manual(values=high_cols) +
+  theme(axis.title.x=element_blank(),
+        axis.title.y = element_text(size=14),
+        axis.text.x = element_text(angle = 35, hjust = 1, size= 14),
+        axis.text.y = element_text(size=12)) +
+  labs(y="Concentrations in ppm")
+metadata_high_metals_long_plot
+```
+
 But how does the overal picture look regarding how variables relate to one another?
 
 ```{r metadata cors}

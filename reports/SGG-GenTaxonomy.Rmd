@@ -87,6 +87,13 @@ names(ps.b.r.glom.psdf.noProteo)[names(ps.b.r.glom.psdf.noProteo) == 'Phylum'] <
 names(ps.b.r.ProtCl.glom.psdf.noP)[names(ps.b.r.ProtCl.glom.psdf.noP) == 'Class'] <- 'Taxa'
 #join the two
 ps.b.r.ProteoCl.AllPhy <- rbind(ps.b.r.glom.psdf.noProteo, ps.b.r.ProtCl.glom.psdf.noP)
+
+ps.b.r.ProteoCl.AllPhy$Site.name = factor(ps.b.r.ProteoCl.AllPhy$Site.name, 
+                                                       levels = c("Celynen North","Crumlin Navigation","Six Bells",
+                                                                  "Blaenavon","Cefn Hengoed","Dinas","Glyncastle",
+                                                                  "Morlais","Mountain Gate","Taff Bargoed","Ynysarwed","Lindsay",
+                                                                  "Taffs Well"))
+
 ps.b.r.ProteoCl.AllPhy.plot<-ggplot(ps.b.r.ProteoCl.AllPhy[Abundance > 0], 
                                     aes(x = Site.name, y = Abundance/3, fill = Taxa)) + 
   facet_grid(Month~.) +
@@ -148,6 +155,8 @@ gen_cols_c = gsub("#FEEB93", "#f58e03", gen_cols_c)
 gen_cols_c = gsub("#FDC988", "#c988fd", gen_cols_c)
 gen_cols_c = gsub("#D1DD9E", "#b6c965", gen_cols_c)
 gen_cols_c = gsub("#FDC086", "#fc993b", gen_cols_c)
+gen_cols_c = gsub("#FFFF99", "springgreen4", gen_cols_c)
+gen_cols_c = gsub("#BEAED4", "violet", gen_cols_c)
 
 ps.b.deep_128.glom.df.unkonly.f<-subset(ps.b.deep_128.glom.df.unkonly, 
                                                   Abundance > 0.03)
@@ -310,7 +319,9 @@ ps.b.deep_128.glom.df.g.plot <- ggplot(ps.b.deep_128.glom.df.g,
   theme(axis.title.y = element_blank()) +
   coord_flip() +
   scale_x_discrete(expand=c(0.05, 0.05)) +
-  scale_color_manual(values = colorRampPalette(brewer.pal(12, "Paired"))(13))
+  scale_color_manual(values = colorRampPalette(brewer.pal(12, "Paired"))(13)) +
+  scale_y_sqrt(breaks = c(0.01,0.05,0.15,0.25,0.5,0.75,1),
+               labels = scales::percent)
 ```
 ```{r message=FALSE, warning=FALSE, ,fig.width=14}
 ps.b.r.ProteoCl.AllPhy.temp.plot
