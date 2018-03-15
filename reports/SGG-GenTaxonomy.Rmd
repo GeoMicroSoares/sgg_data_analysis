@@ -176,8 +176,7 @@ ps.b.deep_128.glom.df.plot <- ggplot(ps.b.deep_128.glom.df.unkonly.f,
   geom_point(aes(color=Genus, fill=Genus,
                  size=Abundance), alpha = 0.8) +
   scale_y_continuous(breaks = c(0.25,0.75),
-                     limits = c(0,1),
-                     labels = scales::percent) +
+                     limits = c(0,1) ) +
   theme(axis.title.x = element_blank(),
         axis.text.x = element_blank(),
         axis.ticks.x = element_blank(),

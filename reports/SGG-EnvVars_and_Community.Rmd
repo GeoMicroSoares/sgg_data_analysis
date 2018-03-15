@@ -57,9 +57,10 @@ ps.b.r <-  transform_sample_counts(ps.b, function(x) {x/sum(x)} )
 
 ```{r main metadata}
 sample_data(ps.b.r)$Site.name = factor(sample_data(ps.b.r)$Site.name, 
-                                          levels = c("Blaenavon","Cefn Hengoed","Mountain Gate","Taff Bargoed",
-                                                     "Glyncastle","Dinas","Ynysarwed","Celynen North","Morlais",
-                                                     "Lindsay","Six Bells","Crumlin Navigation","Taffs Well"))
+                                          levels = c("Celynen North","Crumlin Navigation","Six Bells",
+                                                                  "Blaenavon","Cefn Hengoed","Dinas","Glyncastle",
+                                                                  "Morlais","Mountain Gate","Taff Bargoed","Ynysarwed","Lindsay",
+                                                                  "Taffs Well"))
 metadata<-sample_data(ps.b.r)
 #Temp
 temp_table.plot<-ggplot(metadata, 
@@ -360,6 +361,257 @@ metadata_high_metals_long_plot<-ggplot(metadata_high_metals_long,
 metadata_high_metals_long_plot
 ```
 
+Do certain metal concentrations correlate with microbial abundance?
+
+```{r}
+ps.b.deep_128 = subset_taxa(ps.b.r, 
+                            Family=="Gallionellaceae" | Family=="Helicobacteraceae")
+ps.b.deep_128.glom <- tax_glom(ps.b.deep_128, taxrank = 'Genus', NArm = FALSE)
+ps.b.deep_128.glom.df <- data.table(psmelt(ps.b.deep_128.glom))
+levels(ps.b.deep_128.glom.df$Genus)<-c(levels(ps.b.deep_128.glom.df$Genus),
+                                     c("Unc. Gallionellaceae","Unc. Helicobacteraceae"))
+ps.b.deep_128.glom.df$Genus[is.na(ps.b.deep_128.glom.df$Genus) & ps.b.deep_128.glom.df$Family=="Gallionellaceae"] <- "Unc. Gallionellaceae"
+ps.b.deep_128.glom.df$Genus[is.na(ps.b.deep_128.glom.df$Genus) & ps.b.deep_128.glom.df$Family=="Helicobacteraceae"] <- "Unc. Helicobacteraceae"
+# ps.b.deep_128.glom.df.unkonly.f<-subset(ps.b.deep_128.glom.df.unkonly, 
+#                                                   Abundance > 0.03)
+
+metadata_cor_main_genera = ps.b.deep_128.glom.df[, c("Genus", "Abundance", "Site.name", "Month", "Time_point","SO4..µg.ml",
+                                                     "X55.Mn.ng.ml","Mg.µg.ml","X68.Zn.ng.ml","Na.µg.ml","X6.Li.ng.ml",
+                                                     "X135.Ba.ng.ml","X11.B.ng.ml","X75.As..He..ng.ml","X59.Co.ng.ml",
+                                                     "X63.Cu.ng.ml","X78.Se.ng.ml","X200.Hg.ng.ml","X201.Hg.ng.ml","X202.Hg.ng.ml")]
+names(metadata_cor_main_genera) = c("Genus", "Abundance", "Site_name", "Month", "Time_point","SO4","Mn","Mg","Zn","Na","Li","Ba",
+                                    "B","As","Co","Cu","Se","X200_Hg","X201_Hg","X202_Hg")
+
+high_metadata_cor_main_genera = metadata_cor_main_genera[, c("Genus", "Abundance", "Site_name", "Month", "Time_point","Mn","SO4")]
+high_metadata_cor_main_genera=high_metadata_cor_main_genera[complete.cases(high_metadata_cor_main_genera), ]
+dm1 <- melt(high_metadata_cor_main_genera[,c("Site_name","Month","Genus","Abundance")], id=c("Site_name","Month","Abundance"))
+dm1 = dm1[, c("Site_name", "Month","value","Abundance")]
+colnames(dm1) <- c("Site_name", "Month", "Genus", "Abundance")
+dm2 <- melt(high_metadata_cor_main_genera[,c("Site_name","Month","Mn","SO4")], id=c("Site_name","Month"))
+colnames(dm2) <- c("Site_name", "Month", "metals", "metal_ppm")
+high_metadata_cor_main_genera_melt <- merge(dm1, dm2, allow.cartesian=TRUE)
+
+high_metadata_cor_main_genera_melt$Site_name = factor(high_metadata_cor_main_genera_melt$Site_name, 
+                                                       levels = c("Celynen North","Crumlin Navigation","Six Bells",
+                                                                  "Blaenavon","Cefn Hengoed","Dinas","Glyncastle",
+                                                                  "Morlais","Mountain Gate","Taff Bargoed","Ynysarwed","Lindsay",
+                                                                  "Taffs Well"))
+high_metadata_cor_main_genera_melt$Genus = factor(high_metadata_cor_main_genera_melt$Genus, 
+                                                       levels = c("Gallionella","Sideroxydans","Ferriphaselus","Unc. Gallionellaceae",
+                                                                  "Sulfurovum","Sulfurimonas", "Unc. Helicobacteraceae",
+                                                                  "Sulfuricurvum","Sulfuriferula"))
+
+high_metadata_cor_main_genera_melt_plot<-ggplot(high_metadata_cor_main_genera_melt, 
+                        aes(x=Site_name)) +
+  geom_point(aes(y=Abundance,
+                 fill=Genus,
+                 shape=Month,
+                 size=Abundance,
+                 alpha=0.5),
+             color="transparent",
+             position = position_dodge(width=0.5)) +
+  geom_point(aes(y=metal_ppm/2000,
+                 shape=Month,
+                 color=metals),
+             size=2,
+             position = position_dodge(width=0.5)) +
+  scale_fill_manual(values = colorRampPalette(brewer.pal(8, "Dark2"))(9)) +
+  scale_colour_manual(values = brewer.pal(6, "Paired")) +
+  scale_y_continuous(sec.axis = sec_axis(~.*2000, name = "Concentrations in ppm")) +
+  scale_shape_manual(values = c(21,22,23)) +
+  labs(y="Relative Abundance (%)") +
+  theme(axis.title.x=element_blank(),
+        axis.title.y = element_text(size=14),
+        axis.text.x = element_text(angle=35, hjust = 1,vjust = 1),
+        axis.text.y = element_text(size=12),
+        legend.position = "right",
+        legend.justification = "center",
+        legend.text = element_text(size = 12),
+        legend.title = element_text(size = 13, face = "bold"),
+        legend.direction = "vertical") +
+  guides(fill = guide_legend(override.aes = list(colour=colorRampPalette(brewer.pal(8, "Dark2"))(9),
+                                                 shape=15, size=3)),
+         size=NULL)
+#medium
+#removed zinc and mg because they didn't show any relevant patterns
+medium_metadata_cor_main_genera = metadata_cor_main_genera[, c("Genus", "Abundance", "Site_name", "Month", "Time_point",
+                                                               "Na","Li","Ba","B")]
+medium_metadata_cor_main_genera=medium_metadata_cor_main_genera[complete.cases(medium_metadata_cor_main_genera$Genus), ]
+dm1 <- melt(medium_metadata_cor_main_genera[,c("Site_name","Month","Genus","Abundance")], id=c("Site_name","Month","Abundance"))
+dm1 = dm1[, c("Site_name", "Month","value","Abundance")]
+colnames(dm1) <- c("Site_name", "Month", "Genus", "Abundance")
+dm2 <- melt(medium_metadata_cor_main_genera[,c("Site_name","Month","Na","Li","Ba","B")], id=c("Site_name","Month"))
+colnames(dm2) <- c("Site_name", "Month", "metals", "metal_ppm")
+medium_metadata_cor_main_genera_melt <- merge(dm1, dm2, allow.cartesian=TRUE)
+
+medium_metadata_cor_main_genera_melt$Site_name = factor(medium_metadata_cor_main_genera_melt$Site_name, 
+                                                       levels = c("Celynen North","Crumlin Navigation","Six Bells",
+                                                                  "Blaenavon","Cefn Hengoed","Dinas","Glyncastle",
+                                                                  "Morlais","Mountain Gate","Taff Bargoed","Ynysarwed","Lindsay",
+                                                                  "Taffs Well"))
+medium_metadata_cor_main_genera_melt$Genus = factor(medium_metadata_cor_main_genera_melt$Genus, 
+                                                       levels = c("Gallionella","Sideroxydans","Ferriphaselus","Unc. Gallionellaceae",
+                                                                  "Sulfurovum","Sulfurimonas", "Unc. Helicobacteraceae",
+                                                                  "Sulfuricurvum","Sulfuriferula"))
+medium_metadata_cor_main_genera_melt_plot<-ggplot(medium_metadata_cor_main_genera_melt, 
+                        aes(x=Site_name)) +
+  geom_point(aes(y=Abundance,
+                 fill=Genus,
+                 shape=Month,
+                 size=Abundance,
+                 alpha=0.5),
+             color="transparent",
+             position = position_dodge(width=0.5)) +
+  geom_point(aes(y=metal_ppm/400,
+                 shape=Month,
+                 color=metals),
+             size=3,
+             position = position_dodge(width=0.5)) +
+  scale_fill_manual(values = colorRampPalette(brewer.pal(8, "Dark2"))(9)) +
+  scale_colour_manual(values = brewer.pal(6, "Paired")) +
+  scale_shape_manual(values = c(21,22,23)) +
+  scale_y_continuous(sec.axis = sec_axis(~.*400, name = "Concentrations in ppm")) +
+  labs(y="Relative Abundance (%)") +
+  theme(axis.title.x=element_blank(),
+        axis.title.y = element_text(size=14),
+        axis.text.x = element_text(angle=35, hjust = 1,vjust = 1),
+        axis.text.y = element_text(size=12),
+        legend.position = "right",
+        legend.justification = "center",
+        legend.text = element_text(size = 12),
+        legend.title = element_text(size = 13, face = "bold"),
+        legend.direction = "vertical") +
+  guides(fill = guide_legend(override.aes = list(colour=colorRampPalette(brewer.pal(8, "Dark2"))(9),
+                                                 shape=15, size=3)),
+         size=NULL)
+#low-medium
+low_medium_metadata_cor_main_genera = metadata_cor_main_genera[, c("Genus", "Abundance", "Site_name", "Month", "Time_point",
+                                                               "As","Co","Cu","Se")]
+low_medium_metadata_cor_main_genera=low_medium_metadata_cor_main_genera[complete.cases(low_medium_metadata_cor_main_genera$Genus), ]
+dm1 <- melt(low_medium_metadata_cor_main_genera[,c("Site_name","Month","Genus","Abundance")], id=c("Site_name","Month","Abundance"))
+dm1 = dm1[, c("Site_name", "Month","value","Abundance")]
+colnames(dm1) <- c("Site_name", "Month", "Genus", "Abundance")
+dm2 <- melt(low_medium_metadata_cor_main_genera[,c("Site_name","Month","As","Co","Cu","Se")], id=c("Site_name","Month"))
+colnames(dm2) <- c("Site_name", "Month", "metals", "metal_ppm")
+low_medium_metadata_cor_main_genera_melt <- merge(dm1, dm2, allow.cartesian=TRUE)
+
+low_medium_metadata_cor_main_genera_melt$Site_name = factor(low_medium_metadata_cor_main_genera_melt$Site_name, 
+                                                       levels = c("Celynen North","Crumlin Navigation","Six Bells",
+                                                                  "Blaenavon","Cefn Hengoed","Dinas","Glyncastle",
+                                                                  "Morlais","Mountain Gate","Taff Bargoed","Ynysarwed","Lindsay",
+                                                                  "Taffs Well"))
+low_medium_metadata_cor_main_genera_melt$Genus = factor(low_medium_metadata_cor_main_genera_melt$Genus, 
+                                                       levels = c("Gallionella","Sideroxydans","Ferriphaselus","Unc. Gallionellaceae",
+                                                                  "Sulfurovum","Sulfurimonas", "Unc. Helicobacteraceae",
+                                                                  "Sulfuricurvum","Sulfuriferula"))
+low_medium_metadata_cor_main_genera_melt_plot<-ggplot(low_medium_metadata_cor_main_genera_melt, 
+                        aes(x=Site_name)) +
+  geom_point(aes(y=Abundance,
+                 fill=Genus,
+                 shape=Month,
+                 size=Abundance,
+                 alpha=0.5),
+             color="transparent",
+             position = position_dodge(width=0.5)) +
+  geom_point(aes(y=metal_ppm/50,
+                 shape=Month,
+                 color=metals),
+             size=3,
+             position = position_dodge(width=0.5)) +
+  scale_fill_manual(values = colorRampPalette(brewer.pal(8, "Dark2"))(9)) +
+  scale_colour_manual(values = brewer.pal(6, "Paired")) +
+  scale_shape_manual(values = c(21,22,23)) +
+  scale_y_continuous(sec.axis = sec_axis(~.*50, name = "Concentrations in ppm")) +
+  labs(y="Relative Abundance (%)") +
+  theme(axis.title.x=element_blank(),
+        axis.title.y = element_text(size=14),
+        axis.text.x = element_text(angle=35, hjust = 1,vjust = 1),
+        axis.text.y = element_text(size=12),
+        legend.position = "right",
+        legend.justification = "center",
+        legend.text = element_text(size = 12),
+        legend.title = element_text(size = 13, face = "bold"),
+        legend.direction = "vertical") +
+  guides(fill = guide_legend(override.aes = list(colour=colorRampPalette(brewer.pal(8, "Dark2"))(9),
+                                                 shape=15, size=3)),
+         size=NULL)
+#low
+low_metadata_cor_main_genera = metadata_cor_main_genera[, c("Genus", "Abundance", "Site_name", "Month", "Time_point",
+                                                               "X200_Hg","X201_Hg","X202_Hg")]
+low_metadata_cor_main_genera=low_metadata_cor_main_genera[complete.cases(low_metadata_cor_main_genera$Genus), ]
+dm1 <- melt(low_metadata_cor_main_genera[,c("Site_name","Month","Genus","Abundance")], id=c("Site_name","Month","Abundance"))
+dm1 = dm1[, c("Site_name", "Month","value","Abundance")]
+colnames(dm1) <- c("Site_name", "Month", "Genus", "Abundance")
+dm2 <- melt(low_metadata_cor_main_genera[,c("Site_name","Month","X200_Hg","X201_Hg","X202_Hg")], id=c("Site_name","Month"))
+colnames(dm2) <- c("Site_name", "Month", "metals", "metal_ppm")
+low_metadata_cor_main_genera_melt <- merge(dm1, dm2, allow.cartesian=TRUE)
+
+low_metadata_cor_main_genera_melt$Site_name = factor(low_metadata_cor_main_genera_melt$Site_name, 
+                                                       levels = c("Celynen North","Crumlin Navigation","Six Bells",
+                                                                  "Blaenavon","Cefn Hengoed","Dinas","Glyncastle",
+                                                                  "Morlais","Mountain Gate","Taff Bargoed","Ynysarwed","Lindsay",
+                                                                  "Taffs Well"))
+low_metadata_cor_main_genera_melt$Genus = factor(low_metadata_cor_main_genera_melt$Genus, 
+                                                       levels = c("Gallionella","Sideroxydans","Ferriphaselus","Unc. Gallionellaceae",
+                                                                  "Sulfurovum","Sulfurimonas", "Unc. Helicobacteraceae",
+                                                                  "Sulfuricurvum","Sulfuriferula"))
+low_metadata_cor_main_genera_melt_plot<-ggplot(low_metadata_cor_main_genera_melt, 
+                        aes(x=Site_name)) +
+  geom_point(aes(y=Abundance,
+                 fill=Genus,
+                 shape=Month,
+                 size=Abundance,
+                 alpha=0.5),
+             color="transparent",
+             position = position_dodge(width=0.5)) +
+  geom_point(aes(y=metal_ppm*3,
+                 shape=Month,
+                 color=metals),
+             size=3,
+             position = position_dodge(width=0.5)) +
+  scale_fill_manual(values = colorRampPalette(brewer.pal(8, "Dark2"))(9)) +
+  scale_colour_manual(values = brewer.pal(3, "Paired")) +
+  scale_shape_manual(values = c(21,22,23)) +
+  scale_y_continuous(sec.axis = sec_axis(~./3, name = "Concentrations in ppm")) +
+  labs(y="Relative Abundance (%)") +
+  theme(axis.title.x=element_blank(),
+        axis.title.y = element_text(size=14),
+        axis.text.x = element_text(angle=35, hjust = 1,vjust = 1),
+        axis.text.y = element_text(size=12),
+        legend.position = "right",
+        legend.justification = "center",
+        legend.text = element_text(size = 12),
+        legend.title = element_text(size = 13, face = "bold"),
+        legend.direction = "vertical") +
+  guides(fill = guide_legend(override.aes = list(colour=colorRampPalette(brewer.pal(8, "Dark2"))(9),
+                                                 shape=15, size=3)),
+         size=NULL)
+```
+
+```{r, message=FALSE, warning=FALSE, fig.width=16, fig.height=8}
+high_metadata_cor_main_genera_melt_plot
+```
+
+Nothing to say here.
+
+```{r, message=FALSE, warning=FALSE, fig.width=16, fig.height=8}
+medium_metadata_cor_main_genera_melt_plot
+```
+
+Actually quite interesting, it seems barium is only high in the sulfur sites and in Taffs! Could barium concentrations be driving Ferriphaselus abundances in the dataset? Barium concentrations are also quite different in the three sulfur sites. They seem to drive the Sulfurovum peaks in Crumlin, where as in Six Bells, Na, Li and B are quite high but it seems the presence of barium kind of seems to unlock the dominance of this genus. Much lower concentrations of Na, Li and B with Ba at ~150ppm sends Sulfuricurvum to the dominant position.
+
+It seems higher Na concentrations are related to sites lacking dominance of iron-oxidizers. Also, Ynysarwed has unusual lithium concentrations.
+
+```{r, message=FALSE, warning=FALSE, fig.width=16, fig.height=8}
+low_medium_metadata_cor_main_genera_melt_plot
+```
+
+~50ppm As + ~100ppm Li may explain lack of Gallionellaceae dominance in Ynysarwed. 
+
+```{r, message=FALSE, warning=FALSE, fig.width=16, fig.height=8}
+low_metadata_cor_main_genera_melt_plot
+```
+
 But how does the overal picture look regarding how variables relate to one another?
 
 ```{r metadata cors}
@@ -422,9 +674,10 @@ There's clearly a lot of variation, but definitely there's loads more to learn o
 ```{r so4 sgg ca}
 swales_ca_metadata<-read.csv("/media/andre/B2F8C9A0F8C962E9/SGG_16S_analysis/SGG_16S_metadata/R_previous_BGS_chem_data_SWales.csv", header=TRUE)
 swales_ca_metadata$Site = factor(swales_ca_metadata$Site, 
-                                          levels = c("Blaenavon","Cefn Hengoed","Mountain Gate","Taff Bargoed",
-                                                     "Glyncastle","Dinas","Ynysarwed","Celynen North","Morlais",
-                                                     "Lindsay","Six Bells","Crumlin Navigation","Taffs Well"))
+                                          levels = c("Celynen North","Crumlin Navigation","Six Bells",
+                                                                  "Blaenavon","Cefn Hengoed","Dinas","Glyncastle",
+                                                                  "Morlais","Mountain Gate","Taff Bargoed","Ynysarwed","Lindsay",
+                                                                  "Taffs Well"))
 swales_ca_metadata$Month = factor(swales_ca_metadata$Month, 
                                           levels = c("January","February","March","April","May","June","July",
                                                      "August","September","October","November","December"))
@@ -444,8 +697,7 @@ swales_ca_metadata_plot<-ggplot(swales_ca_metadata,
         legend.text=element_text(size=7)) +
   guides(fill = guide_legend(nrow = 1),
          color = guide_legend(nrow = 1)) +
-  scale_y_continuous(expand = c(0,0),
-                     breaks = c(0,250,500,750,1000,1250)) +
+  scale_y_continuous(breaks = c(0,250,500,750,1000,1250)) +
   labs(y=expression(paste("SO"[4]^{-2},"(",mu,"g.mL"^{-1},")")))
 
 swales_ca_metadata_2016<-subset(swales_ca_metadata, 
