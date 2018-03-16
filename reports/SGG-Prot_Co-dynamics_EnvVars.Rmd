@@ -32,6 +32,8 @@ library(GGally)
 library(randomcoloR)
 library(knitr)
 library(kableExtra)
+library(ggpmisc)
+library(ggpubr)
 ```
 
 ```{r load SV data, echo=FALSE}
@@ -284,10 +286,13 @@ Ok then, so do any of the metals we measured have any impact on the relative abu
 
 ```{r echo=FALSE}
 metadata_cor_main_genera = ps.b.deep_128.glom.df[, c("Genus", "Abundance", "Site.name", "Month", "Time_point","SO4..µg.ml",
+                                                     "DO..sat","Temp.C","pH",
                                                      "X55.Mn.ng.ml","Mg.µg.ml","X68.Zn.ng.ml","Na.µg.ml","X6.Li.ng.ml",
                                                      "X135.Ba.ng.ml","X11.B.ng.ml","X75.As..He..ng.ml","X59.Co.ng.ml",
                                                      "X63.Cu.ng.ml","X78.Se.ng.ml","X200.Hg.ng.ml","X201.Hg.ng.ml","X202.Hg.ng.ml")]
-names(metadata_cor_main_genera) = c("Genus", "Abundance", "Site_name", "Month", "Time_point","SO4","Mn","Mg","Zn","Na","Li","Ba",
+names(metadata_cor_main_genera) = c("Genus", "Abundance", "Site_name", "Month", 
+                                    "Time_point","SO4","DO","Temp","pH"
+                                    ,"Mn","Mg","Zn","Na","Li","Ba",
                                     "B","As","Co","Cu","Se","X200_Hg","X201_Hg","X202_Hg")
 #medium
 #removed zinc and mg because they didn't show any relevant patterns
@@ -322,7 +327,7 @@ medium_metadata_cor_main_genera_melt_plot<-ggplot(medium_metadata_cor_main_gener
   geom_point(aes(y=metal_ppm/400,
                  shape=Month,
                  color=metals),
-             size=3,
+             size = 4,
              position = position_dodge(width=0.5)) +
   scale_fill_manual(values = colorRampPalette(brewer.pal(8, "Dark2"))(10)) +
   scale_colour_manual(values = brewer.pal(6, "Paired")) +
@@ -331,7 +336,7 @@ medium_metadata_cor_main_genera_melt_plot<-ggplot(medium_metadata_cor_main_gener
   labs(y="Relative Abundance (%)") +
   theme(axis.title.x=element_blank(),
         axis.title.y = element_text(size=14),
-        axis.text.x = element_text(angle=35, hjust = 1,vjust = 1),
+        axis.text.x = element_text(angle=30, hjust = 1,vjust = 1),
         axis.text.y = element_text(size=12),
         legend.position = "right",
         legend.justification = "center",
@@ -373,7 +378,7 @@ low_medium_metadata_cor_main_genera_melt_plot<-ggplot(low_medium_metadata_cor_ma
   geom_point(aes(y=metal_ppm/50,
                  shape=Month,
                  color=metals),
-             size=3,
+             size=4,
              position = position_dodge(width=0.5)) +
   scale_fill_manual(values = colorRampPalette(brewer.pal(8, "Dark2"))(10)) +
   scale_colour_manual(values = brewer.pal(6, "Paired")) +
@@ -382,7 +387,7 @@ low_medium_metadata_cor_main_genera_melt_plot<-ggplot(low_medium_metadata_cor_ma
   labs(y="Relative Abundance (%)") +
   theme(axis.title.x=element_blank(),
         axis.title.y = element_text(size=14),
-        axis.text.x = element_text(angle=35, hjust = 1,vjust = 1),
+        axis.text.x = element_text(angle=30, hjust = 1,vjust = 1),
         axis.text.y = element_text(size=12),
         legend.position = "right",
         legend.justification = "center",
@@ -432,13 +437,13 @@ temp_table.plot<-ggplot(metadata,
              color="gray",
              linetype="dashed") +
   theme(axis.title.x=element_blank(),
-        axis.title.y = element_text(size=14),
-        axis.text.x = element_text(angle = 25, hjust = 1, size= 14),
+        axis.title.y = element_text(size=10),
+        axis.text.x = element_text(angle=30, hjust = 1,vjust = 1),
         axis.text.y = element_text(size=12),
         legend.position = "bottom",
         legend.title = element_text(face = "bold"),
         legend.background = element_rect(fill="gray95", size=.5, linetype="dotted")) +
-  annotate("text", "Mountain Gate", 14, vjust = -1, hjust=.45, size= 4,
+  annotate("text", "Morlais", 14, vjust = -1, hjust=.45, size= 4,
            label = "Average mine water temperature (Farr et al, 2016)") +
   labs(y=expression(paste("Temperature (",degree,"C)")))
 #DO
@@ -451,8 +456,8 @@ do.plot<-ggplot(metadata,
            color="gray60",
            linetype="dashed") +
   theme(axis.title.x=element_blank(),
-        axis.title.y = element_text(size=14),
-        axis.text.x = element_blank(),
+        axis.title.y = element_text(size=10),
+        axis.text.x = element_text(angle=30, hjust = 1,vjust = 1),
         axis.text.y = element_text(size=12),
         legend.position = "none") +
   labs(y="Dissolved Oxygen (%)")
@@ -466,68 +471,168 @@ pH.plot<-ggplot(metadata,
            color="gray60",
            linetype="dashed") +
   theme(axis.title.x=element_blank(),
-        axis.title.y = element_text(size=14),
-        axis.text.x = element_blank(),
+        axis.title.y = element_text(size=10),
+        axis.text.x = element_text(angle=30, hjust = 1,vjust = 1),
         axis.text.y = element_text(size=12),
         legend.position = "none") +
   labs(y="pH") +
   guides(size=FALSE)
-#EC
-ec.plot<-ggplot(metadata, 
-                        aes(x=Site.name, y=`EC.uS.cm`, fill=Month)) +
-  geom_point(aes(fill=Month, color=Month),
-             size=2,
-             position = position_dodge(width=0.5)) +
-  geom_hline(yintercept = 2000,
-           color="gray60",
-           linetype="dashed") +
-  geom_hline(yintercept = 1000,
-           color="grey80",
-           linetype="dashed") +
-  scale_y_continuous(breaks=c(0,500,1000,1500,2000,2500,3000)) +
-  theme(axis.title.x=element_blank(),
-        axis.title.y = element_text(size=14),
-        axis.text.x = element_text(angle = 25, hjust = 1, size= 14),
-        axis.text.y = element_text(size=12),
-        legend.position = "top",
-        legend.title = element_text(face = "bold"),
-        legend.background = element_rect(fill="gray95", size=.5, linetype="dotted")) +
-  labs(y=expression(paste("EC (",mu,"S.cm"^{-1},")")))
 ```
-```{r  echo=FALSE, message=FALSE, warning=FALSE, fig.height=11, fig.width=10}
-plot_grid(temp_table.plot, do.plot, pH.plot, ec.plot, ncol = 1, align='v', rel_heights = c(1.75,1,1,1.75))
+```{r  echo=FALSE, message=FALSE, warning=FALSE, fig.height=8, fig.width=10}
+plot_grid(temp_table.plot, do.plot, pH.plot, ncol = 1, align='v', rel_heights = c(1,0.8,0.9))
 ```
 
+Can we try and get numbers out of these supposed relations?
 
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+cor_genera_geochem = as(metadata_cor_main_genera[, c("Genus", "Abundance", "Site_name", "Month",
+                                                  "Temp","DO","pH","Na","Li","Ba","B","As","Co","Cu","Se")], "data.frame")
+cor_genera_geochem_gal = subset(cor_genera_geochem, 
+                            Genus=="Gallionella")
+cor_genera_geochem_sid = subset(cor_genera_geochem, 
+                            Genus=="Sideroxydans")
+cor_genera_geochem_fer = subset(cor_genera_geochem, 
+                            Genus=="Ferriphaselus")
+cor_genera_geochem_sulfuri = subset(cor_genera_geochem, 
+                            Genus=="Sulfuricurvum")
+cor_genera_geochem_sulfuro = subset(cor_genera_geochem, 
+                            Genus=="Sulfurovum")
+cor_genera_geochem_gal$Genus = factor(cor_genera_geochem_gal$Genus, 
+                                          levels = c("Gallionella"))
 
+cor_genera_geochem_galdm1 <- melt(cor_genera_geochem_gal[,c("Site_name","Month","Genus","Abundance")], id=c("Site_name","Month","Abundance"))
+cor_genera_geochem_galdm1 = cor_genera_geochem_galdm1[, c("Site_name", "Month","value","Abundance")]
+colnames(cor_genera_geochem_galdm1) <- c("Site_name", "Month", "Genus", "Abundance")
 
+cor_genera_geochem_galdm2 <- melt(cor_genera_geochem_gal[,c("Site_name","Month","Temp","DO","pH","Na","Li",
+                                                            "Ba","B","As","Co","Cu","Se")], id=c("Site_name","Month"))
+colnames(cor_genera_geochem_galdm2) <- c("Site_name", "Month", "variable", "value")
 
+cor_genera_geochem_galdm1dm2_melt <- merge(cor_genera_geochem_galdm1, cor_genera_geochem_galdm2, allow.cartesian=TRUE)
 
+cor_genera_geochem_galdm1dm2_melt_plot=ggplot(cor_genera_geochem_galdm1dm2_melt) +
+  geom_jitter(aes(Abundance,value, 
+                  colour=variable)) + 
+  geom_smooth(aes(Abundance,value, colour=variable), 
+              method=lm, se=FALSE) +
+  facet_wrap(~variable, scales="free_x") +
+  stat_cor(aes(Abundance,value,
+               color = variable), 
+           label.y = 370, label.x = 0.3)+
+  stat_poly_eq(aes(Abundance,value,
+        color = variable, label = ..eq.label..),
+    formula = y ~ x, 
+    label.y = 300, label.x = 0.3,
+    parse = TRUE)
 
+cor_genera_geochem_siddm1 <- melt(cor_genera_geochem_sid[,c("Site_name","Month","Genus","Abundance")], id=c("Site_name","Month","Abundance"))
+cor_genera_geochem_siddm1 = cor_genera_geochem_siddm1[, c("Site_name", "Month","value","Abundance")]
+colnames(cor_genera_geochem_siddm1) <- c("Site_name", "Month", "Genus", "Abundance")
 
+cor_genera_geochem_siddm2 <- melt(cor_genera_geochem_sid[,c("Site_name","Month","Temp","DO","pH","Na","Li",
+                                                            "Ba","B","As","Co","Cu","Se")], id=c("Site_name","Month"))
+colnames(cor_genera_geochem_siddm2) <- c("Site_name", "Month", "variable", "value")
 
+cor_genera_geochem_siddm1dm2_melt <- merge(cor_genera_geochem_siddm1, cor_genera_geochem_siddm2, allow.cartesian=TRUE)
 
+cor_genera_geochem_siddm1dm2_melt_plot=ggplot(cor_genera_geochem_siddm1dm2_melt) +
+  geom_jitter(aes(Abundance,value, 
+                  colour=variable)) + 
+  geom_smooth(aes(Abundance,value, colour=variable), 
+              method=lm, se=FALSE) +
+  facet_wrap(~variable, scales="free_x") +
+  stat_cor(aes(Abundance,value,
+               color = variable), 
+           label.y = 370, label.x = 0.3)+
+  stat_poly_eq(aes(Abundance,value,
+        color = variable, label = ..eq.label..),
+    formula = y ~ x, 
+    label.y = 300, label.x = 0.3,
+    parse = TRUE)
 
+cor_genera_geochem_ferdm1 <- melt(cor_genera_geochem_fer[,c("Site_name","Month","Genus","Abundance")], id=c("Site_name","Month","Abundance"))
+cor_genera_geochem_ferdm1 = cor_genera_geochem_ferdm1[, c("Site_name", "Month","value","Abundance")]
+colnames(cor_genera_geochem_ferdm1) <- c("Site_name", "Month", "Genus", "Abundance")
 
+cor_genera_geochem_ferdm2 <- melt(cor_genera_geochem_fer[,c("Site_name","Month","Temp","DO","pH","Na","Li",
+                                                            "Ba","B","As","Co","Cu","Se")], id=c("Site_name","Month"))
+colnames(cor_genera_geochem_ferdm2) <- c("Site_name", "Month", "variable", "value")
 
+cor_genera_geochem_ferdm1dm2_melt <- merge(cor_genera_geochem_ferdm1, cor_genera_geochem_ferdm2, allow.cartesian=TRUE)
 
+cor_genera_geochem_ferdm1dm2_melt_plot=ggplot(cor_genera_geochem_ferdm1dm2_melt) +
+  geom_jitter(aes(Abundance,value, 
+                  colour=variable)) + 
+  geom_smooth(aes(Abundance,value, colour=variable), 
+              method=lm, se=FALSE) +
+  facet_wrap(~variable, scales="free_x") +
+  stat_cor(aes(Abundance,value,
+               color = variable), 
+           label.y = 370, label.x = 0.3)+
+  stat_poly_eq(aes(Abundance,value,
+        color = variable, label = ..eq.label..),
+    formula = y ~ x, 
+    label.y = 300, label.x = 0.3,
+    parse = TRUE)
 
+cor_genera_geochem_sulfuridm1 <- melt(cor_genera_geochem_sulfuri[,c("Site_name","Month","Genus","Abundance")], id=c("Site_name","Month","Abundance"))
+cor_genera_geochem_sulfuridm1 = cor_genera_geochem_sulfuridm1[, c("Site_name", "Month","value","Abundance")]
+colnames(cor_genera_geochem_sulfuridm1) <- c("Site_name", "Month", "Genus", "Abundance")
 
+cor_genera_geochem_sulfuridm2 <- melt(cor_genera_geochem_sulfuri[,c("Site_name","Month","Temp","DO","pH","Na","Li",
+                                                            "Ba","B","As","Co","Cu","Se")], id=c("Site_name","Month"))
+colnames(cor_genera_geochem_sulfuridm2) <- c("Site_name", "Month", "variable", "value")
 
+cor_genera_geochem_sulfuridm1dm2_melt <- merge(cor_genera_geochem_sulfuridm1, cor_genera_geochem_sulfuridm2, allow.cartesian=TRUE)
 
+cor_genera_geochem_sulfuridm1dm2_melt_plot=ggplot(cor_genera_geochem_sulfuridm1dm2_melt) +
+  geom_jitter(aes(Abundance,value, 
+                  colour=variable)) + 
+  geom_smooth(aes(Abundance,value, colour=variable), 
+              method=lm, se=FALSE) +
+  facet_wrap(~variable, scales="free_x") +
+  stat_cor(aes(Abundance,value,
+               color = variable), 
+           label.y = 370, label.x = 0.3)+
+  stat_poly_eq(aes(Abundance,value,
+        color = variable, label = ..eq.label..),
+    formula = y ~ x, 
+    label.y = 300, label.x = 0.3,
+    parse = TRUE)
 
+cor_genera_geochem_sulfurodm1 <- melt(cor_genera_geochem_sulfuro[,c("Site_name","Month","Genus","Abundance")], id=c("Site_name","Month","Abundance"))
+cor_genera_geochem_sulfurodm1 = cor_genera_geochem_sulfurodm1[, c("Site_name", "Month","value","Abundance")]
+colnames(cor_genera_geochem_sulfurodm1) <- c("Site_name", "Month", "Genus", "Abundance")
 
+cor_genera_geochem_sulfurodm2 <- melt(cor_genera_geochem_sulfuro[,c("Site_name","Month","Temp","DO","pH","Na","Li",
+                                                            "Ba","B","As","Co","Cu","Se")], id=c("Site_name","Month"))
+colnames(cor_genera_geochem_sulfurodm2) <- c("Site_name", "Month", "variable", "value")
 
+cor_genera_geochem_sulfurodm1dm2_melt <- merge(cor_genera_geochem_sulfurodm1, cor_genera_geochem_sulfurodm2, allow.cartesian=TRUE)
 
+cor_genera_geochem_sulfurodm1dm2_melt_plot=ggplot(cor_genera_geochem_sulfurodm1dm2_melt) +
+  geom_jitter(aes(Abundance,value, 
+                  colour=variable)) + 
+  geom_smooth(aes(Abundance,value, colour=variable), 
+              method=lm, se=FALSE) +
+  facet_wrap(~variable, scales="free_x") +
+  stat_cor(aes(Abundance,value,
+               color = variable), 
+           label.y = 370, label.x = 0.3)+
+  stat_poly_eq(aes(Abundance,value,
+        color = variable, label = ..eq.label..),
+    formula = y ~ x, 
+    label.y = 300, label.x = 0.3,
+    parse = TRUE)
+```
 
-
-
-
-
-
-
-
-
+```{r echo=FALSE, message=FALSE, warning=FALSE, fig.width=16,fig.height=16}
+cor_genera_geochem_galdm1dm2_melt_plot + ggtitle("Gallionella")
+cor_genera_geochem_siddm1dm2_melt_plot + ggtitle("Sideroxydans")
+cor_genera_geochem_ferdm1dm2_melt_plot + ggtitle("Ferriphaselus")
+cor_genera_geochem_sulfuridm1dm2_melt_plot + ggtitle("Sulfuricurvum")
+cor_genera_geochem_sulfurodm1dm2_melt_plot + ggtitle("Sulfurovum")
+```
 
 
 
