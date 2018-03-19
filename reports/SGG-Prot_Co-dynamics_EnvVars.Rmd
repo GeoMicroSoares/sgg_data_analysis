@@ -60,7 +60,9 @@ ps.b.r <-  transform_sample_counts(ps.b, function(x) {x/sum(x)} )
 ##**1 -** High-level taxonomic view of the dataset:
 
 ```{r general proteobacterial taxonomy, echo=FALSE}
-ps.b.r.glom <- tax_glom(ps.b.r, taxrank = 'Phylum', NArm = FALSE)
+# ps.b.r.glom <- tax_glom(ps.b.r, taxrank = 'Phylum', NArm = FALSE)
+# saveRDS(ps.b.r.glom, "/media/andre/B2F8C9A0F8C962E9/SGG_16S_analysis/SGG_16S_R/ps.b.r.glom.rds")
+ps.b.r.glom = readRDS("/media/andre/B2F8C9A0F8C962E9/SGG_16S_analysis/SGG_16S_R/ps.b.r.glom.rds")
 ps.b.r.glom.psdf <- data.table(psmelt(ps.b.r.glom))
 ps.b.r.glom.psdf$Phylum <- as.character(ps.b.r.glom.psdf$Phylum)
 
@@ -137,7 +139,9 @@ ps.b.deep_128.glom.df$Site.name = factor(ps.b.deep_128.glom.df$Site.name,
                                                                   "Blaenavon","Cefn Hengoed","Dinas","Glyncastle",
                                                                   "Morlais","Mountain Gate","Taff Bargoed","Ynysarwed","Lindsay",
                                                                   "Taffs Well"))
-ps.b.r.glom.psdf.unk.glom <- tax_glom(ps.b.r, taxrank = 'Genus', NArm = FALSE)
+# ps.b.r.glom.psdf.unk.glom <- tax_glom(ps.b.r, taxrank = 'Genus', NArm = FALSE)
+# saveRDS(ps.b.r.glom.psdf.unk.glom, "/media/andre/B2F8C9A0F8C962E9/SGG_16S_analysis/SGG_16S_R/ps.b.r.glom.psdf.unk.glom.rds")
+ps.b.r.glom.psdf.unk.glom = readRDS("/media/andre/B2F8C9A0F8C962E9/SGG_16S_analysis/SGG_16S_R/ps.b.r.glom.psdf.unk.glom.rds")
 ps.b.r.glom.psdf.unk <- data.table(psmelt(ps.b.r.glom.psdf.unk.glom))
 levels(ps.b.r.glom.psdf.unk$Phylum)<-c(levels(ps.b.r.glom.psdf.unk$Phylum),
                                      c("Unknown Phyla"))
@@ -210,7 +214,7 @@ It's unclear why bacteria with very similar metabolisms (iron- and sulfur-oxidis
 
 ##**3 -** Genomic information for the most abundant genera in the dataset:
 
-#### Gallionella:
+#### **Gallionella:**
 
 Gallionella is an microaerophilic iron-oxidiser that uses $Fe^{+2}$ solely as electron donor. It's equipped for aerotaxis and motile. Grows preferrably at lower temperatures (6ºC) and is unable to grow at 30ºC. Carbon metabolism works through the RubisCO pathway.
 
@@ -219,7 +223,7 @@ gal_path = "/media/andre/B2F8C9A0F8C962E9/SGG_16S_analysis/Gallionella_Sideroxyd
 include_graphics(gal_path)
 ```
 
-#### Sideroxydans:
+#### **Sideroxydans:**
 
 Sideroxydans is a motile microaerophilic iron-oxidiser that uses $Fe^{+2}$ as electron donor but also has the potential to use thiosulfate. This is due to the presence of a *sox* operon (ABXYZ) in its genome. Grows preferrably at higher temperatures (30ºC) and is unable to grow at 6ºC. Carbon metabolism works through the RubisCO pathway.
 
@@ -228,11 +232,11 @@ sid_path ="/media/andre/B2F8C9A0F8C962E9/SGG_16S_analysis/Gallionella_Sideroxyda
 include_graphics(sid_path)
 ```
 
-#### Ferriphaselus:
+#### **Ferriphaselus:**
 
 Ferriphaselus is a motile microaerophilic iron-oxidiser that uses $Fe^{+2}$ solely as electron donor. However, it lacks the *Mto* gene cluster to oxidise $Fe^{+2}$ and seems to use instead a panoply of alternative FeO metabolisms specially including *act* (AB1B2CDEF). Further studies are needed to prove its capacity to grow on sulfur species, since not only it has a *sox* operon (ABXYZ) in its genome but also *dsr* (ABEFHCMKJOPN), *rdsr* (DAGC), *Sqr* and *soe* (ABC). Grows preferrably at higher temperatures (30ºC) and is unable to grow at 6ºC. Carbon metabolism works through the RubisCO pathway.
 
-#### Sulfuricurvum:
+#### **Sulfuricurvum:**
 
 Sulfuricurvum is a motile facultative anaerobe that can use sulfide, sulfite and elemental sulfur as electron donors along with oxygen, nitrate and nitric oxide as electron acceptors. To allow that number of electron donors, Sulfuricurvum not only uses the *sox* (ABXYZ) operon, but also *Sqr* (DF), *Sor* (AB) and *Fcc* (AB). 4 plasmids were found in Handley *et al.* (2014) with one associated to nitrogen metabolism. Carbon metabolism works through the rTCA cycle.
 
@@ -241,7 +245,7 @@ sid_path ="/media/andre/B2F8C9A0F8C962E9/SGG_16S_analysis/Sulfurovum_Sulfuricurv
 include_graphics(sid_path)
 ```
 
-#### Sulfurovum:
+#### **Sulfurovum:**
 
 Sulfurovum is a non-motile facultative anaerobe that can use thiosulfate and elemental sulfur as electron donors along with oxygen and nitrate  as electron acceptors. Sulfurovum only uses the *sox* (ABXYZ) operon, as opposed to Sulfuricurvum. Carbon metabolism works through the rTCA cycle.
 
@@ -284,7 +288,10 @@ Ok then, so do any of the metals we measured have any impact on the relative abu
 
 ##**4 -** Metals and relative abundance of important genera:
 
-```{r echo=FALSE}
+Can we try and get numbers out of these supposed relations?
+
+What follows is a heatmap of *Pearson* correlations. *Pearson* assumes linearity between variables as well as normal distributions of data and is sensible to transformation. Normalization of the metadata variables to a 0-1 scale didn't change results here.
+```{r echo=FALSE, message=FALSE, warning=FALSE}
 metadata_cor_main_genera = ps.b.deep_128.glom.df[, c("Genus", "Abundance", "Site.name", "Month", "Time_point","SO4..µg.ml",
                                                      "DO..sat","Temp.C","pH",
                                                      "X55.Mn.ng.ml","Mg.µg.ml","X68.Zn.ng.ml","Na.µg.ml","X6.Li.ng.ml",
@@ -294,351 +301,129 @@ names(metadata_cor_main_genera) = c("Genus", "Abundance", "Site_name", "Month",
                                     "Time_point","SO4","DO","Temp","pH"
                                     ,"Mn","Mg","Zn","Na","Li","Ba",
                                     "B","As","Co","Cu","Se","X200_Hg","X201_Hg","X202_Hg")
-#medium
-#removed zinc and mg because they didn't show any relevant patterns
-medium_metadata_cor_main_genera = metadata_cor_main_genera[, c("Genus", "Abundance", "Site_name", "Month", "Time_point",
-                                                               "Na","Li","Ba","B")]
-medium_metadata_cor_main_genera=medium_metadata_cor_main_genera[complete.cases(medium_metadata_cor_main_genera$Genus), ]
-dm1 <- melt(medium_metadata_cor_main_genera[,c("Site_name","Month","Genus","Abundance")], id=c("Site_name","Month","Abundance"))
-dm1 = dm1[, c("Site_name", "Month","value","Abundance")]
-colnames(dm1) <- c("Site_name", "Month", "Genus", "Abundance")
-dm2 <- melt(medium_metadata_cor_main_genera[,c("Site_name","Month","Na","Li","Ba","B")], id=c("Site_name","Month"))
-colnames(dm2) <- c("Site_name", "Month", "metals", "metal_ppm")
-medium_metadata_cor_main_genera_melt <- merge(dm1, dm2, allow.cartesian=TRUE)
 
-medium_metadata_cor_main_genera_melt$Site_name = factor(medium_metadata_cor_main_genera_melt$Site_name, 
-                                                       levels = c("Celynen North","Crumlin Navigation","Six Bells",
-                                                                  "Blaenavon","Cefn Hengoed","Dinas","Glyncastle",
-                                                                  "Morlais","Mountain Gate","Taff Bargoed","Ynysarwed","Lindsay",
-                                                                  "Taffs Well"))
-medium_metadata_cor_main_genera_melt$Genus = factor(medium_metadata_cor_main_genera_melt$Genus, 
-                                                       levels = c("Gallionella","Sideroxydans","Ferriphaselus","Unc. Gallionellaceae",
-                                                                  "Sulfurovum","Sulfurimonas", "Unc. Helicobacteraceae",
-                                                                  "Sulfuricurvum","Sulfuriferula"))
-medium_metadata_cor_main_genera_melt_plot<-ggplot(medium_metadata_cor_main_genera_melt, 
-                        aes(x=Site_name)) +
-  geom_point(aes(y=Abundance,
-                 fill=Genus,
-                 shape=Month,
-                 size=Abundance,
-                 alpha=0.5),
-             color="transparent",
-             position = position_dodge(width=0.5)) +
-  geom_point(aes(y=metal_ppm/400,
-                 shape=Month,
-                 color=metals),
-             size = 4,
-             position = position_dodge(width=0.5)) +
-  scale_fill_manual(values = colorRampPalette(brewer.pal(8, "Dark2"))(10)) +
-  scale_colour_manual(values = brewer.pal(6, "Paired")) +
-  scale_shape_manual(values = c(21,22,23)) +
-  scale_y_continuous(sec.axis = sec_axis(~.*400, name = "Concentrations in ppm")) +
-  labs(y="Relative Abundance (%)") +
-  theme(axis.title.x=element_blank(),
-        axis.title.y = element_text(size=14),
-        axis.text.x = element_text(angle=30, hjust = 1,vjust = 1),
-        axis.text.y = element_text(size=12),
-        legend.position = "right",
-        legend.justification = "center",
-        legend.text = element_text(size = 12),
-        legend.title = element_text(size = 13, face = "bold"),
-        legend.direction = "vertical") +
-  guides(fill = guide_legend(override.aes = list(colour=colorRampPalette(brewer.pal(8, "Dark2"))(10),
-                                                 shape=15, size=3)),
-         size=NULL)
-#low-medium
-low_medium_metadata_cor_main_genera = metadata_cor_main_genera[, c("Genus", "Abundance", "Site_name", "Month", "Time_point",
-                                                               "As","Co","Cu","Se")]
-low_medium_metadata_cor_main_genera=low_medium_metadata_cor_main_genera[complete.cases(low_medium_metadata_cor_main_genera$Genus), ]
-dm1 <- melt(low_medium_metadata_cor_main_genera[,c("Site_name","Month","Genus","Abundance")], id=c("Site_name","Month","Abundance"))
-dm1 = dm1[, c("Site_name", "Month","value","Abundance")]
-colnames(dm1) <- c("Site_name", "Month", "Genus", "Abundance")
-dm2 <- melt(low_medium_metadata_cor_main_genera[,c("Site_name","Month","As","Co","Cu","Se")], id=c("Site_name","Month"))
-colnames(dm2) <- c("Site_name", "Month", "metals", "metal_ppm")
-low_medium_metadata_cor_main_genera_melt <- merge(dm1, dm2, allow.cartesian=TRUE)
-
-low_medium_metadata_cor_main_genera_melt$Site_name = factor(low_medium_metadata_cor_main_genera_melt$Site_name, 
-                                                       levels = c("Celynen North","Crumlin Navigation","Six Bells",
-                                                                  "Blaenavon","Cefn Hengoed","Dinas","Glyncastle",
-                                                                  "Morlais","Mountain Gate","Taff Bargoed","Ynysarwed","Lindsay",
-                                                                  "Taffs Well"))
-low_medium_metadata_cor_main_genera_melt$Genus = factor(low_medium_metadata_cor_main_genera_melt$Genus, 
-                                                       levels = c("Gallionella","Sideroxydans","Ferriphaselus","Unc. Gallionellaceae",
-                                                                  "Sulfurovum","Sulfurimonas", "Unc. Helicobacteraceae",
-                                                                  "Sulfuricurvum","Sulfuriferula"))
-low_medium_metadata_cor_main_genera_melt_plot<-ggplot(low_medium_metadata_cor_main_genera_melt, 
-                        aes(x=Site_name)) +
-  geom_point(aes(y=Abundance,
-                 fill=Genus,
-                 shape=Month,
-                 size=Abundance,
-                 alpha=0.5),
-             color="transparent",
-             position = position_dodge(width=0.5)) +
-  geom_point(aes(y=metal_ppm/50,
-                 shape=Month,
-                 color=metals),
-             size=4,
-             position = position_dodge(width=0.5)) +
-  scale_fill_manual(values = colorRampPalette(brewer.pal(8, "Dark2"))(10)) +
-  scale_colour_manual(values = brewer.pal(6, "Paired")) +
-  scale_shape_manual(values = c(21,22,23)) +
-  scale_y_continuous(sec.axis = sec_axis(~.*50, name = "Concentrations in ppm")) +
-  labs(y="Relative Abundance (%)") +
-  theme(axis.title.x=element_blank(),
-        axis.title.y = element_text(size=14),
-        axis.text.x = element_text(angle=30, hjust = 1,vjust = 1),
-        axis.text.y = element_text(size=12),
-        legend.position = "right",
-        legend.justification = "center",
-        legend.text = element_text(size = 12),
-        legend.title = element_text(size = 13, face = "bold"),
-        legend.direction = "vertical") +
-  guides(fill = guide_legend(override.aes = list(colour=colorRampPalette(brewer.pal(8, "Dark2"))(10),
-                                                 shape=15, size=3)),
-         size=NULL)
-```
-
-Not showing high and low concentration value metals because they don't seem to be relevant.
-
-```{r, echo=FALSE, message=FALSE, warning=FALSE, fig.width=16, fig.height=8}
-medium_metadata_cor_main_genera_melt_plot
-```
-
-Actually quite interesting, it seems barium is only high in the sulfur sites and in Taffs! Could barium concentrations be driving Ferriphaselus abundances in the dataset? Barium concentrations are also quite different in the three sulfur sites. They seem to drive the Sulfurovum peaks in Crumlin, where as in Six Bells, Na, Li and B are quite high but it seems the presence of barium kind of seems to unlock the dominance of this genus. Much lower concentrations of Na, Li and B with Ba at ~150ppm sends Sulfuricurvum to the dominant position.
-
-It seems higher Na concentrations are related to sites lacking dominance of iron-oxidizers. Also, Ynysarwed has unusual lithium concentrations.
-
-```{r, echo=FALSE, message=FALSE, warning=FALSE, fig.width=16, fig.height=8}
-low_medium_metadata_cor_main_genera_melt_plot
-```
-
-~50ppm As + ~100ppm Li may explain lack of Gallionellaceae dominance in Ynysarwed. 
-
-But are these the only factors? Here's some more metadata:
-
-```{r main metadata, echo=FALSE}
-sample_data(ps.b.r)$Site.name = factor(sample_data(ps.b.r)$Site.name, 
-                                          levels = c("Celynen North","Crumlin Navigation","Six Bells",
-                                                                  "Blaenavon","Cefn Hengoed","Dinas","Glyncastle",
-                                                                  "Morlais","Mountain Gate","Taff Bargoed","Ynysarwed","Lindsay",
-                                                                  "Taffs Well"))
-metadata<-sample_data(ps.b.r)
-#Temp
-temp_table.plot<-ggplot(metadata, 
-                        aes(x=Site.name, y=Temp.C, fill=Month)) +
-  geom_point(aes(fill=Month, color=Month),
-             size=2,
-             position = position_dodge(width=0.5)) +
-  geom_hline(yintercept = 13.4,
-             color="dark red",
-             linetype="dashed") +
-  geom_hline(yintercept = 11,
-             color="gray",
-             linetype="dashed") +
-  theme(axis.title.x=element_blank(),
-        axis.title.y = element_text(size=10),
-        axis.text.x = element_text(angle=30, hjust = 1,vjust = 1),
-        axis.text.y = element_text(size=12),
-        legend.position = "bottom",
-        legend.title = element_text(face = "bold"),
-        legend.background = element_rect(fill="gray95", size=.5, linetype="dotted")) +
-  annotate("text", "Morlais", 14, vjust = -1, hjust=.45, size= 4,
-           label = "Average mine water temperature (Farr et al, 2016)") +
-  labs(y=expression(paste("Temperature (",degree,"C)")))
-#DO
-do.plot<-ggplot(metadata, 
-                        aes(x=Site.name, y=`DO..sat`, fill=Month)) +
-  geom_point(aes(fill=Month, color=Month),
-             size=2,
-             position = position_dodge(width=0.5)) +
-  geom_hline(yintercept = 50,
-           color="gray60",
-           linetype="dashed") +
-  theme(axis.title.x=element_blank(),
-        axis.title.y = element_text(size=10),
-        axis.text.x = element_text(angle=30, hjust = 1,vjust = 1),
-        axis.text.y = element_text(size=12),
-        legend.position = "none") +
-  labs(y="Dissolved Oxygen (%)")
-#pH
-pH.plot<-ggplot(metadata, 
-                        aes(x=Site.name, y=`pH`, fill=Month)) +
-  geom_point(aes(fill=Month, color=Month),
-             size=2,
-             position = position_dodge(width=0.5)) +
-  geom_hline(yintercept = 7,
-           color="gray60",
-           linetype="dashed") +
-  theme(axis.title.x=element_blank(),
-        axis.title.y = element_text(size=10),
-        axis.text.x = element_text(angle=30, hjust = 1,vjust = 1),
-        axis.text.y = element_text(size=12),
-        legend.position = "none") +
-  labs(y="pH") +
-  guides(size=FALSE)
-```
-```{r  echo=FALSE, message=FALSE, warning=FALSE, fig.height=8, fig.width=10}
-plot_grid(temp_table.plot, do.plot, pH.plot, ncol = 1, align='v', rel_heights = c(1,0.8,0.9))
-```
-
-Can we try and get numbers out of these supposed relations?
-
-```{r echo=FALSE, message=FALSE, warning=FALSE}
 cor_genera_geochem = as(metadata_cor_main_genera[, c("Genus", "Abundance", "Site_name", "Month",
-                                                  "Temp","DO","pH","Na","Li","Ba","B","As","Co","Cu","Se")], "data.frame")
-cor_genera_geochem_gal = subset(cor_genera_geochem, 
-                            Genus=="Gallionella")
-cor_genera_geochem_sid = subset(cor_genera_geochem, 
-                            Genus=="Sideroxydans")
-cor_genera_geochem_fer = subset(cor_genera_geochem, 
-                            Genus=="Ferriphaselus")
-cor_genera_geochem_sulfuri = subset(cor_genera_geochem, 
-                            Genus=="Sulfuricurvum")
-cor_genera_geochem_sulfuro = subset(cor_genera_geochem, 
-                            Genus=="Sulfurovum")
-cor_genera_geochem_gal$Genus = factor(cor_genera_geochem_gal$Genus, 
-                                          levels = c("Gallionella"))
+                                                     "Temp","SO4","DO","pH",
+                                                     "Mn","Mg","Zn","Na","Li","Ba",
+                                                     "B","As","Co","Cu","Se","X200_Hg","X201_Hg","X202_Hg")], "data.frame")
+cor_genera_geochem$DO[is.na(cor_genera_geochem$DO)] <- 44.1
+cor_genera_geochem$pH[is.na(cor_genera_geochem$pH)] <- 7
+cor_genera_geochem=cor_genera_geochem[ , colSums(is.na(cor_genera_geochem)) == 0]
+cor_genera_geochem_gal = subset(cor_genera_geochem, Genus=="Gallionella")
+cor_genera_geochem_sid = subset(cor_genera_geochem, Genus=="Sideroxydans")
+cor_genera_geochem_fer = subset(cor_genera_geochem, Genus=="Ferriphaselus")
+cor_genera_geochem_sulfuri = subset(cor_genera_geochem, Genus=="Sulfuricurvum")
+cor_genera_geochem_sulfuro = subset(cor_genera_geochem, Genus=="Sulfurovum")
 
-cor_genera_geochem_galdm1 <- melt(cor_genera_geochem_gal[,c("Site_name","Month","Genus","Abundance")], id=c("Site_name","Month","Abundance"))
-cor_genera_geochem_galdm1 = cor_genera_geochem_galdm1[, c("Site_name", "Month","value","Abundance")]
-colnames(cor_genera_geochem_galdm1) <- c("Site_name", "Month", "Genus", "Abundance")
+cor_genera_geochem_gal <- cor_genera_geochem_gal[, -which(names(cor_genera_geochem_gal) %in% c("Genus","Site_name","Month"))]
 
-cor_genera_geochem_galdm2 <- melt(cor_genera_geochem_gal[,c("Site_name","Month","Temp","DO","pH","Na","Li",
-                                                            "Ba","B","As","Co","Cu","Se")], id=c("Site_name","Month"))
-colnames(cor_genera_geochem_galdm2) <- c("Site_name", "Month", "variable", "value")
+cor_genera_geochem_gal_ggcorr<-ggcorr(cor_genera_geochem_gal, 
+                                           method = c("all.obs", "spearman"),
+                                           label = TRUE, label_size = 3, 
+                                          label_round = 2, label_alpha = TRUE,
+                                           palette = "PRGn",
+                                           nbreaks = 10, hjust = 1, 
+                                           size=4, layout.exp = 2)
 
-cor_genera_geochem_galdm1dm2_melt <- merge(cor_genera_geochem_galdm1, cor_genera_geochem_galdm2, allow.cartesian=TRUE)
+cor_genera_geochem_sid <- cor_genera_geochem_sid[, -which(names(cor_genera_geochem_sid) %in% c("Genus","Site_name","Month"))]
 
-cor_genera_geochem_galdm1dm2_melt_plot=ggplot(cor_genera_geochem_galdm1dm2_melt) +
-  geom_jitter(aes(Abundance,value, 
-                  colour=variable)) + 
-  geom_smooth(aes(Abundance,value, colour=variable), 
-              method=lm, se=FALSE) +
-  facet_wrap(~variable, scales="free_x") +
-  stat_cor(aes(Abundance,value,
-               color = variable), 
-           label.y = 370, label.x = 0.3)+
-  stat_poly_eq(aes(Abundance,value,
-        color = variable, label = ..eq.label..),
-    formula = y ~ x, 
-    label.y = 300, label.x = 0.3,
-    parse = TRUE)
+cor_genera_geochem_sid_ggcorr<-ggcorr(cor_genera_geochem_sid, 
+                                           method = c("all.obs", "spearman"),
+                                           label = TRUE, label_size = 3, 
+                                          label_round = 2, label_alpha = TRUE,
+                                           palette = "PRGn",
+                                           nbreaks = 10, hjust = 1, 
+                                           size=4, layout.exp = 2)
 
-cor_genera_geochem_siddm1 <- melt(cor_genera_geochem_sid[,c("Site_name","Month","Genus","Abundance")], id=c("Site_name","Month","Abundance"))
-cor_genera_geochem_siddm1 = cor_genera_geochem_siddm1[, c("Site_name", "Month","value","Abundance")]
-colnames(cor_genera_geochem_siddm1) <- c("Site_name", "Month", "Genus", "Abundance")
+cor_genera_geochem_fer <- cor_genera_geochem_fer[, -which(names(cor_genera_geochem_fer) %in% c("Genus","Site_name","Month"))]
 
-cor_genera_geochem_siddm2 <- melt(cor_genera_geochem_sid[,c("Site_name","Month","Temp","DO","pH","Na","Li",
-                                                            "Ba","B","As","Co","Cu","Se")], id=c("Site_name","Month"))
-colnames(cor_genera_geochem_siddm2) <- c("Site_name", "Month", "variable", "value")
+cor_genera_geochem_fer_ggcorr<-ggcorr(cor_genera_geochem_fer, 
+                                           method = c("all.obs", "spearman"),
+                                           label = TRUE, label_size = 3, 
+                                           label_round = 2, label_alpha = TRUE,
+                                           palette = "PRGn",
+                                           nbreaks = 10, hjust = 1, 
+                                           size=4, layout.exp = 2)
 
-cor_genera_geochem_siddm1dm2_melt <- merge(cor_genera_geochem_siddm1, cor_genera_geochem_siddm2, allow.cartesian=TRUE)
+cor_genera_geochem_sulfuri <- cor_genera_geochem_sulfuri[, -which(names(cor_genera_geochem_sulfuri) %in% c("Genus","Site_name","Month"))]
 
-cor_genera_geochem_siddm1dm2_melt_plot=ggplot(cor_genera_geochem_siddm1dm2_melt) +
-  geom_jitter(aes(Abundance,value, 
-                  colour=variable)) + 
-  geom_smooth(aes(Abundance,value, colour=variable), 
-              method=lm, se=FALSE) +
-  facet_wrap(~variable, scales="free_x") +
-  stat_cor(aes(Abundance,value,
-               color = variable), 
-           label.y = 370, label.x = 0.3)+
-  stat_poly_eq(aes(Abundance,value,
-        color = variable, label = ..eq.label..),
-    formula = y ~ x, 
-    label.y = 300, label.x = 0.3,
-    parse = TRUE)
+cor_genera_geochem_sulfuri_ggcorr<-ggcorr(cor_genera_geochem_sulfuri, 
+                                           method = c("all.obs", "spearman"),
+                                           label = TRUE, label_size = 3, 
+                                          label_round = 2, label_alpha = TRUE,
+                                           palette = "PRGn",
+                                           nbreaks = 10, hjust = 1, 
+                                           size=4, layout.exp = 2)
 
-cor_genera_geochem_ferdm1 <- melt(cor_genera_geochem_fer[,c("Site_name","Month","Genus","Abundance")], id=c("Site_name","Month","Abundance"))
-cor_genera_geochem_ferdm1 = cor_genera_geochem_ferdm1[, c("Site_name", "Month","value","Abundance")]
-colnames(cor_genera_geochem_ferdm1) <- c("Site_name", "Month", "Genus", "Abundance")
+cor_genera_geochem_sulfuro <- cor_genera_geochem_sulfuro[, -which(names(cor_genera_geochem_sulfuro) %in% c("Genus","Site_name","Month"))]
 
-cor_genera_geochem_ferdm2 <- melt(cor_genera_geochem_fer[,c("Site_name","Month","Temp","DO","pH","Na","Li",
-                                                            "Ba","B","As","Co","Cu","Se")], id=c("Site_name","Month"))
-colnames(cor_genera_geochem_ferdm2) <- c("Site_name", "Month", "variable", "value")
+cor_genera_geochem_sulfuro_ggcorr<-ggcorr(cor_genera_geochem_sulfuro, 
+                                           method = c("all.obs", "spearman"),
+                                           label = TRUE, label_size = 3, 
+                                          label_round = 2, label_alpha = TRUE,
+                                           palette = "PRGn",
+                                           nbreaks = 10, hjust = 1, 
+                                           size=4, layout.exp = 2)
 
-cor_genera_geochem_ferdm1dm2_melt <- merge(cor_genera_geochem_ferdm1, cor_genera_geochem_ferdm2, allow.cartesian=TRUE)
+#THIS IS SO LAZY
 
-cor_genera_geochem_ferdm1dm2_melt_plot=ggplot(cor_genera_geochem_ferdm1dm2_melt) +
-  geom_jitter(aes(Abundance,value, 
-                  colour=variable)) + 
-  geom_smooth(aes(Abundance,value, colour=variable), 
-              method=lm, se=FALSE) +
-  facet_wrap(~variable, scales="free_x") +
-  stat_cor(aes(Abundance,value,
-               color = variable), 
-           label.y = 370, label.x = 0.3)+
-  stat_poly_eq(aes(Abundance,value,
-        color = variable, label = ..eq.label..),
-    formula = y ~ x, 
-    label.y = 300, label.x = 0.3,
-    parse = TRUE)
+pearson_gal = head(cor_genera_geochem_gal_ggcorr$data, n=12)
+pearson_gal$y = "Gallionella"
+pearson_sid = head(cor_genera_geochem_sid_ggcorr$data, n=12)
+pearson_sid$y = "Sideroxydans"
+pearson_fer = head(cor_genera_geochem_fer_ggcorr$data, n=12)
+pearson_fer$y = "Ferriphaselus"
+pearson_sulfuri = head(cor_genera_geochem_sulfuri_ggcorr$data, n=12)
+pearson_sulfuri$y = "Sulfuricurvum"
+pearson_sulfuro = head(cor_genera_geochem_sulfuro_ggcorr$data, n=12)
+pearson_sulfuro$y = "Sulfurovum"
 
-cor_genera_geochem_sulfuridm1 <- melt(cor_genera_geochem_sulfuri[,c("Site_name","Month","Genus","Abundance")], id=c("Site_name","Month","Abundance"))
-cor_genera_geochem_sulfuridm1 = cor_genera_geochem_sulfuridm1[, c("Site_name", "Month","value","Abundance")]
-colnames(cor_genera_geochem_sulfuridm1) <- c("Site_name", "Month", "Genus", "Abundance")
+replot_pearson = rbind(pearson_gal,pearson_sid,pearson_fer,pearson_sulfuri,pearson_sulfuro)
+# replot_pearson$x<-pearson_gal$x
 
-cor_genera_geochem_sulfuridm2 <- melt(cor_genera_geochem_sulfuri[,c("Site_name","Month","Temp","DO","pH","Na","Li",
-                                                            "Ba","B","As","Co","Cu","Se")], id=c("Site_name","Month"))
-colnames(cor_genera_geochem_sulfuridm2) <- c("Site_name", "Month", "variable", "value")
+low="#af8dc3"
+mid="#f7f7f7"
+high="#7fbf7b"
 
-cor_genera_geochem_sulfuridm1dm2_melt <- merge(cor_genera_geochem_sulfuridm1, cor_genera_geochem_sulfuridm2, allow.cartesian=TRUE)
+replot_pearson$x = factor(replot_pearson$x,levels = c("Temp","DO","pH","As","B","Ba","Co","Li","Mn","Na","Se","SO4"))
+replot_pearson$y = factor(replot_pearson$y,levels = c("Sulfurovum","Sulfuricurvum",
+                                                      "Ferriphaselus","Sideroxydans","Gallionella"))
 
-cor_genera_geochem_sulfuridm1dm2_melt_plot=ggplot(cor_genera_geochem_sulfuridm1dm2_melt) +
-  geom_jitter(aes(Abundance,value, 
-                  colour=variable)) + 
-  geom_smooth(aes(Abundance,value, colour=variable), 
-              method=lm, se=FALSE) +
-  facet_wrap(~variable, scales="free_x") +
-  stat_cor(aes(Abundance,value,
-               color = variable), 
-           label.y = 370, label.x = 0.3)+
-  stat_poly_eq(aes(Abundance,value,
-        color = variable, label = ..eq.label..),
-    formula = y ~ x, 
-    label.y = 300, label.x = 0.3,
-    parse = TRUE)
-
-cor_genera_geochem_sulfurodm1 <- melt(cor_genera_geochem_sulfuro[,c("Site_name","Month","Genus","Abundance")], id=c("Site_name","Month","Abundance"))
-cor_genera_geochem_sulfurodm1 = cor_genera_geochem_sulfurodm1[, c("Site_name", "Month","value","Abundance")]
-colnames(cor_genera_geochem_sulfurodm1) <- c("Site_name", "Month", "Genus", "Abundance")
-
-cor_genera_geochem_sulfurodm2 <- melt(cor_genera_geochem_sulfuro[,c("Site_name","Month","Temp","DO","pH","Na","Li",
-                                                            "Ba","B","As","Co","Cu","Se")], id=c("Site_name","Month"))
-colnames(cor_genera_geochem_sulfurodm2) <- c("Site_name", "Month", "variable", "value")
-
-cor_genera_geochem_sulfurodm1dm2_melt <- merge(cor_genera_geochem_sulfurodm1, cor_genera_geochem_sulfurodm2, allow.cartesian=TRUE)
-
-cor_genera_geochem_sulfurodm1dm2_melt_plot=ggplot(cor_genera_geochem_sulfurodm1dm2_melt) +
-  geom_jitter(aes(Abundance,value, 
-                  colour=variable)) + 
-  geom_smooth(aes(Abundance,value, colour=variable), 
-              method=lm, se=FALSE) +
-  facet_wrap(~variable, scales="free_x") +
-  stat_cor(aes(Abundance,value,
-               color = variable), 
-           label.y = 370, label.x = 0.3)+
-  stat_poly_eq(aes(Abundance,value,
-        color = variable, label = ..eq.label..),
-    formula = y ~ x, 
-    label.y = 300, label.x = 0.3,
-    parse = TRUE)
+replot_pearson_plot <- ggplot(replot_pearson,
+       aes(x, y)) +
+  geom_tile(aes(fill=breaks), color = "white") +
+  coord_equal() +
+  geom_text(aes(label = label,
+                alpha = abs(coefficient)), 
+            size = 4, color = "black") +
+  scale_fill_manual(values = colorRampPalette(c(low, mid, high))(length(levels(replot_pearson$breaks))),
+                    drop = FALSE) +
+  ggtitle("Pearson coefficients for relevant genera and metadata") +
+  theme(axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.text.y = element_text(face = "italic")) +
+  guides(alpha = FALSE,
+         fill = guide_legend(title = NULL))
+# replot_pearson_plot_2 <- add_sub(replot_pearson_plot, x  = 0, hjust = 0, vjust = 3, size = 10,
+#                                  substitute(paste("Temperature in Celsius\nDO in %")))
+# replot_pearson_plot_3 <- add_sub(replot_pearson_plot_2, x  = 0, hjust = 0, vjust = 1.5, size = 10,
+#                                  substitute(paste("Elements in ",mu, g.mL^{-1})))
+```
+```{r echo=FALSE, fig.align="center", fig.width=10}
+replot_pearson_plot
 ```
 
-```{r echo=FALSE, message=FALSE, warning=FALSE, fig.width=16,fig.height=16}
-cor_genera_geochem_galdm1dm2_melt_plot + ggtitle("Gallionella")
-cor_genera_geochem_siddm1dm2_melt_plot + ggtitle("Sideroxydans")
-cor_genera_geochem_ferdm1dm2_melt_plot + ggtitle("Ferriphaselus")
-cor_genera_geochem_sulfuridm1dm2_melt_plot + ggtitle("Sulfuricurvum")
-cor_genera_geochem_sulfurodm1dm2_melt_plot + ggtitle("Sulfurovum")
-```
+So from *Pearson* correlations it looks like each of the relative abundance of each FeOB is defined by a specific set of metadata variables that probably drives co-occurrence across the dataset. **Gallionella** is very positively correlated to cobalt concentrations, less positively to manganese and arsenic and negatively to barium, temperature and sodium concentrations. The first two make sense since this genus is known to grow better a lower temperatures and has had its potential for manganese, cobalt and arsenic resistance reported [here](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3770913/).
 
+Regarding **Sideroxydans**, it seems the only meaningful correlations point positively to cobalt and negatively to barium and boron. Again, at least some part of this may have been predicted by [previous work](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3770913/), but barium and boron aren't directly mentioned. Unlike **Gallionella**, **Sideroxydans** doesn't show correlations towards either temperature, dissolved oxygen or pH.
 
+**Ferriphaselus** stands out as being negatively correlated to sulfate and sodium concentrations. Not sure what this means but sulfate isn't a direct indicator of elemental sulfur, sulfite or sulfide concentrations. Aside from that, weak negative correlations to lithium and temperature and positive correlations seen from cobalt.
 
+A number of correlations arise with **Sulfuricurvum**, where it seems that it's strongly associated to boron and lithium concentrations, followed albeit in a weaker fashion by dissolved oxygen and pH. It's also negatively associated to the presence of cobalt.
 
+**Sulfurovum** presence is marked by positive correlations (>0.45) towards temperature, pH, sodium, lithium, barium and boron. It's also strongly negatively correlated to cobalt presence.
 
-
+Sodium seems to play a relatively important role across the dataset albeit no direct cause for this effect, from what I know. Sodium is the weakest ion to be adsorbed onto mineral surfaces and that may be the cause of its abundance, but how does it affect microbial communities?
 
 
 
