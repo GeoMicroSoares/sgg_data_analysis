@@ -256,13 +256,13 @@ Sulfurovum is a non-motile facultative anaerobe that can use thiosulfate and ele
 Genome annotation done with ```PROKKA v1.12``` (https://github.com/tseemann/prokka), functional annotation with ```EggNOG-mapper``` (http://eggnogdb.embl.de/app/emapper#/app/emapper).
 
 ```{r echo=FALSE}
-Gal = c(3,3,14,3,1,1,1,3,0,15)
-Sid = c(0,2,4,2,5,1,1,2,1,5)
-Fer = c(0,4,6,2,2,0,2,2,2,7)
-Sulfuric = c(0,3,4,2,3,1,0,2,0,2)
-Sulfurov = c(0,3,5,4,6,1,2,3,1,3)
-Els = c("Mercury","Arsenic","Cobalt","Zinc","Copper","Manganese","Selenium","Mg/Co Transport","Magnesium","Heavy metal efflux pump/-related
-")
+Gal = c(3,3,14,3,1,1,1,0,15,3,6)
+Sid = c(0,2,4,2,5,1,1,1,5,2,6)
+Fer = c(0,4,6,2,2,0,2,2,7,2,4)
+Sulfuric = c(0,3,4,2,3,1,0,0,2,2,1)
+Sulfurov = c(0,3,5,4,6,1,2,1,3,3,6)
+Els = c("Mercury","Arsenic","Cobalt","Zinc","Copper","Manganese","Selenium","Magnesium","Heavy metal efflux pump/-related
+","Mg/Co Transport","Sodium exchange-related")
 
 g_hits_df = data.frame("Metals" = Els, 
                        "Gallionella" = Gal, 
@@ -398,8 +398,10 @@ replot_pearson_plot <- ggplot(replot_pearson,
             size = 4, color = "black") +
   scale_fill_manual(values = colorRampPalette(c(low, mid, high))(length(levels(replot_pearson$breaks))),
                     drop = FALSE) +
-  ggtitle("Pearson coefficients for relevant genera and metadata") +
-  theme(axis.title.x = element_blank(),
+  labs(title = "Pearson coefficients",
+       subtitle = "Using non-transformed relative abundances and metadata variables" ) +
+  theme(title = element_text(hjust = 0),
+        axis.title.x = element_blank(),
         axis.title.y = element_blank(),
         axis.text.y = element_text(face = "italic")) +
   guides(alpha = FALSE,
