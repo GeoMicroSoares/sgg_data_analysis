@@ -1,7 +1,7 @@
 ---
 title: "SGG - What explains proteobacterial co-dynamics in the SGG dataset?"
 author: "André Soares"
-date: "8 January 2018"
+date: "23 March 2018"
 output: html_document
 ---
 
@@ -857,7 +857,7 @@ replot_cpr_pearson_plot <- ggplot(replot_cpr_pearson,
          color= guide_legend(title="Significance",
                              override.aes = list(fill="white")))
 ```
-```{r echo=FALSE, fig.align="center", fig.width=10, fig.height=8}
+```{r echo=FALSE, fig.align="center", fig.width=14, fig.height=8}
 replot_cpr_pearson_plot
 ```
 
@@ -866,6 +866,12 @@ Even though of course for most of it not as many correlations come up, some inte
 Interestingly, **Cand. Falkowbacteria** has the strongest positive correlation with barium, **Cand. Moranbacteria** with zinc, **Cand. Azambacteria** with lithium and **Omnitrophica Inc. Sedis** with selenium. 
 
 Any ´evidence´ for this in the genomes?
+
+### Genomic hits for CPR metal resistance potential, lifestyles:
+
+**Genome Accessions:** SAMN04314763, MFPS01000001.1, SAMN04314878, SAMN04315031, SAMN04314976, SAMN04315174, SAMN04314587, SAMN04315171.
+
+Genome annotation done with ```PROKKA v1.12``` (https://github.com/tseemann/prokka), functional annotation with ```EggNOG-mapper``` (http://eggnogdb.embl.de/app/emapper#/app/emapper).
 
 ```{r echo=FALSE}
 Omni = c(0,0,7,2,1,2,0,1,2,1,1,0,2,0)
@@ -880,12 +886,12 @@ Els2 = c("Mercury","Arsenic","Cobalt","Zinc","Copper","Manganese","Selenium","Ma
 
 g_hits_df = data.frame("Hits" = Els2, 
                        "Omnitrophica" = Omni, 
-                       "Azambacteria" = Azam, 
-                       "Jorgensenbacteria" = Jorge,
-                       "Nomurabacteria" = Nomura,
-                       "Moranbacteria" = Moran,
-                       "Magasanikbacteria"=Magas,
-                       "Wolfebacteria"=Wolfe)
+                       "Azambact." = Azam, 
+                       "Jorgensenbact." = Jorge,
+                       "Nomurabact." = Nomura,
+                       "Moranbact." = Moran,
+                       "Magasanikbac."=Magas,
+                       "Wolfebact."=Wolfe)
 options(knitr.table.format = "html") 
 
 g_hits_df %>%
@@ -898,22 +904,130 @@ kable("html", escape = F, align = "c") %>%
                 full_width = F)
 ```
 
-CPR phyla are supposed to mostly be intracellular parasites. Do their relative abundances correlate to those of the main genera?
+Seemingly, these genomes seem to be those of either symbionts or parasites, given their general apparent inability to face the high values of heavy metal concentrations in the environment. Omnitrophica and Azambacteria seem to be able to control cobalt efflux, but not much more.
 
-```{r}
-# cocor_gen = as(metadata_cor_main_genera[, c("Genus", "Abundance")], "data.frame")
-# names(cocor_gen) = c("Taxa","Abundance")
-# # cocor_gen$type = "CPR"
-# cocor_cpr = as(metadata_cor_cpr[, c("Class", "Abundance")], "data.frame")
-# names(cocor_cpr) = c("Taxa","Abundance")
-# cocor_cpr$type = "Main Genera"
-# 
-# ldply(list(cocor_gen = cocor_gen, cocor_cpr = cocor_cpr))
-# cocor_df = rbind(cocor_gen,cocor_cpr)
+Albeit no chemotaxis or flagella hits were found, hinting at the abovementioned lifestyle hipostheses, genes related to pilli were found.
 
+##**6 -** How do CPR taxa abundances relate to our main genera?
 
+```{r cpr genera plot, message=FALSE, warning=FALSE, include=FALSE}
+ps.b.gen = subset_taxa(ps.b.r, 
+                      Genus=="Gallionella" | Genus=="Sideroxydans" | Genus=="Ferriphaselus" | Genus=="Sulfurovum" | Genus == "Sulfuricurvum")
+ps.b.gen.glom <- tax_glom(ps.b.gen, taxrank = 'Genus', NArm = FALSE)
+ps.b.gen.glom.df <- data.table(psmelt(ps.b.gen.glom))
+ps.b.gen.glom.df$Class <- as.character(ps.b.gen.glom.df$Class)
+
+ps.b.gen.glom.df[, median := median(Abundance, na.rm = TRUE), 
+                        by = "Class"]
+
+ps.b.cpr = subset_taxa(ps.b.r, 
+                      Phylum=="Omnitrophica" | Phylum=="Parcubacteria")
+ps.b.cpr.glom <- tax_glom(ps.b.cpr, taxrank = 'Genus', NArm = FALSE)
+ps.b.cpr.glom.df <- data.table(psmelt(ps.b.cpr.glom))
+
+ps.b.cpr.glom.df$Class <- as.character(ps.b.cpr.glom.df$Class)
+ps.b.cpr.glom.df$Phylum <- as.character(ps.b.cpr.glom.df$Phylum)
+
+ps.b.cpr.glom.df[, median := median(Abundance, na.rm = TRUE), 
+                        by = "Class"]
+
+ps.b.cpr.glom.df[(median <= 0.001 & Phylum == "Parcubacteria"), Class := "Other Parcubacteria"]
+ps.b.cpr.glom.df[(median <= 0.001 & Phylum == "Omnitrophica"), Class := "Other Omnitrophica"]
+ps.b.cpr.glom.df$Class[is.na(ps.b.cpr.glom.df$Class) & ps.b.cpr.glom.df$Phylum=="Omnitrophica"] <- "Unc. Omnitrophica"
+ps.b.cpr.glom.df$Class[is.na(ps.b.cpr.glom.df$Class) & ps.b.cpr.glom.df$Phylum=="Parcubacteria"] <- "Unc. Parcubacteria"
+ps.b.cpr.glom.df <- data.frame(lapply(ps.b.cpr.glom.df, 
+                                               function(x) {gsub("Candidatus_", "Cand. ", x)}))
+ps.b.cpr.glom.df <- data.frame(lapply(ps.b.cpr.glom.df, 
+                                               function(x) {gsub("Omnitrophica_Incertae_Sedis", "Omnitrophica Inc. Sed.", x)}))
+
+names(ps.b.gen.glom.df)[names(ps.b.gen.glom.df) == 'Genus'] <- 'Taxa'
+names(ps.b.cpr.glom.df)[names(ps.b.cpr.glom.df) == 'Class'] <- 'Taxa'
+
+ps.b.gen.glom.df.f = ps.b.gen.glom.df[, c("Taxa", "Abundance", "Site.name", "Month", "Time_point")]
+ps.b.cpr.glom.df.f = ps.b.cpr.glom.df[, c("Taxa", "Abundance", "Site.name", "Month", "Time_point")]
+
+ps.b.cpr.gen.glom.df <- rbind(ps.b.gen.glom.df.f, ps.b.cpr.glom.df.f)
+
+ps.b.cpr.gen.glom.df$Taxa = factor(ps.b.cpr.gen.glom.df$Taxa, 
+                                                       levels = c("Gallionella","Sideroxydans","Ferriphaselus",
+                                                                  "Sulfurovum","Sulfuricurvum",
+                                                                  "Cand. Azambacteria","Cand. Falkowbacteria","Cand. Jorgensenbacteria",
+                                                                  "Cand. Nomurabacteria","Cand. Moranbacteria","Cand. Magasanikbacteria",
+                                                                  "Cand. Wolfebacteria","Other Parcubacteria","Unc. Parcubacteria",
+                                                                  "Omnitrophica Inc. Sed.","Unc. Omnitrophica"))
+ps.b.cpr.gen.glom.df$Abundance = as.numeric(as.character(ps.b.cpr.gen.glom.df$Abundance))
+
+cpr.gen_cols = colorRampPalette(brewer.pal(8, "Accent"))(16)
+cpr.gen_cols_c = gsub("#DD2456", "#9c183c", cpr.gen_cols)
+cpr.gen_cols_c = gsub("#A0BAAC", "#749a85", cpr.gen_cols_c)
+cpr.gen_cols_c = gsub("#E4B9A3", "#489fca", cpr.gen_cols_c)
+cpr.gen_cols_c = gsub("#FEEB93", "#f58e03", cpr.gen_cols_c)
+cpr.gen_cols_c = gsub("#FDC988", "#c988fd", cpr.gen_cols_c)
+cpr.gen_cols_c = gsub("#D1DD9E", "#b6c965", cpr.gen_cols_c)
+cpr.gen_cols_c = gsub("#FDC086", "#fc993b", cpr.gen_cols_c)
+cpr.gen_cols_c = gsub("#FFFF99", "springgreen4", cpr.gen_cols_c)
+cpr.gen_cols_c = gsub("#BEAED4", "violet", cpr.gen_cols_c)
+
+ps.b.cpr.gen.glom.df.plot <- ggplot(ps.b.cpr.gen.glom.df, 
+                                     aes(x = Taxa, y = Abundance, fill = Taxa)) + 
+  facet_grid(Site.name~Month)+
+  geom_hline(yintercept = 0.5,
+           color="white",
+           linetype="solid") +
+  geom_point(aes(color=Taxa, fill=Taxa,
+                 size=Abundance), alpha = 0.8) +
+  scale_y_sqrt(breaks=c(0.05,0.25,0.75),
+               limits = c(0,1),
+               labels = scales::percent) +
+  theme(axis.title.x = element_blank(),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        strip.text.y = element_text(angle = 0),
+        strip.placement = "outside",
+        strip.background = element_rect(colour = "gray88",
+                                        fill = "gray88"),
+        panel.background = element_rect(colour = "gray91",
+                                       fill = "gray91"),
+        panel.grid.major.y = element_line(color = "white"),
+        legend.title = element_text(face = "bold")) + 
+  guides(fill = guide_legend(nrow = 16),
+         shape = NULL,
+         size = NULL,
+         alpha = NULL) +
+  ylab("Relative Abundance\n") +
+  scale_fill_manual(values = cpr.gen_cols_c,
+                    na.value = "gray48") +
+  scale_color_manual(values = cpr.gen_cols_c,
+                    na.value = "gray48")
+```
+```{r echo=FALSE, fig.width=14, message=FALSE, warning=FALSE, fig.height=11}
+ps.b.cpr.gen.glom.df.plot
 ```
 
+Unc. Omnitrophica seems to be correlated with Gallionella abundances. Let's take a closer look!
 
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ps.b.cpr.gen.glom.df.gal = subset(ps.b.cpr.gen.glom.df, 
+                                  Taxa=="Gallionella",
+                                  select=c("Taxa","Abundance"))
+names(ps.b.cpr.gen.glom.df.gal) = c("Gal","Gal_Abund")
+ps.b.cpr.gen.glom.df.uncomni = subset(ps.b.cpr.gen.glom.df, 
+                                  Taxa=="Unc. Omnitrophica",
+                                  select=c("Taxa","Abundance"))
+names(ps.b.cpr.gen.glom.df.uncomni) = c("UncOmni","UncOmni_Abund")
+ps.b.cpr.gen.gal.uncomni <- cbind(ps.b.cpr.gen.glom.df.gal, ps.b.cpr.gen.glom.df.uncomni)
+ps.b.cpr.gen.gal.uncomni$Gal_Abund = as.numeric(as.character(ps.b.cpr.gen.gal.uncomni$Gal_Abund))
+ps.b.cpr.gen.gal.uncomni$UncOmni_Abund = as.numeric(as.character(ps.b.cpr.gen.gal.uncomni$UncOmni_Abund))
 
+formula <- y ~ x
 
+ps.b.cpr.gen.gal.uncomni_plot = ggplot(ps.b.cpr.gen.gal.uncomni,
+                                       aes(x=Gal_Abund, y=UncOmni_Abund)) +
+  geom_point() +
+  geom_smooth(method = "loess") +
+  stat_cor(label.y = 0.2)
+  
+ps.b.cpr.gen.gal.uncomni_plot
+```
+
+Uh lala! :D
