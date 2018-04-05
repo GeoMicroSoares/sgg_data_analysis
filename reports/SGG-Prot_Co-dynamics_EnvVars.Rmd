@@ -1020,14 +1020,151 @@ ps.b.cpr.gen.gal.uncomni$Gal_Abund = as.numeric(as.character(ps.b.cpr.gen.gal.un
 ps.b.cpr.gen.gal.uncomni$UncOmni_Abund = as.numeric(as.character(ps.b.cpr.gen.gal.uncomni$UncOmni_Abund))
 
 formula <- y ~ x
+gal_r2 = round(summary(lm(Gal_Abund ~ UncOmni_Abund,ps.b.cpr.gen.gal.uncomni))$r.squared, digits = 3)
+gal_lm = lm(Gal_Abund ~ UncOmni_Abund,ps.b.cpr.gen.gal.uncomni)
+# https://www.r-bloggers.com/can-we-do-better-than-r-squared/
+# anova to calculate regalual sum of squares
+gal.anova <- anova(gal_lm)
+gal.tss <- sum(gal.anova$"Sum Sq")
+gal.pr <- residuals(gal_lm)/(1 - lm.influence(gal_lm)$hat)
+gal.PRESS <- sum(gal.pr^2)
+# predictive R^2
+gal.pred.r.squared <- 1 - gal.PRESS/(gal.tss)
 
 ps.b.cpr.gen.gal.uncomni_plot = ggplot(ps.b.cpr.gen.gal.uncomni,
                                        aes(x=Gal_Abund, y=UncOmni_Abund)) +
   geom_point() +
-  geom_smooth(method = "loess") +
-  stat_cor(label.y = 0.2)
+  geom_smooth(method = "lm") +
+  stat_cor(label.y = 0.19, label.x = 0.15, 
+           size= 7) +
+  stat_poly_eq(
+    aes(label = ..eq.label..),
+    formula = formula, 
+    label.y = 0.21, label.x = 0.15,
+    parse = TRUE, size= 7) +
+  annotate("text", x = 0.15, y = 0.23, 
+           label = "paste(italic(R) ^ 2, \" = 0.973\")", 
+           parse = TRUE, size= 7) +
+  # annotate("text", x = 0.1, y = 0.22, 
+  #        label = "paste(Pred.,italic(R) ^ 2, \" = 0.972\")", parse = TRUE) +
+  scale_x_continuous(limits = c(0,0.54),
+                     expand = c(0,0)) +
+  scale_y_continuous(limits = c(0,0.25),
+                     expand = c(0,0)) +
+  labs(x="Gallionella genus relative abundance (%)",
+       y="Unc. Omnitrophica taxa relative abundance (%)")
   
-ps.b.cpr.gen.gal.uncomni_plot
+
+ps.b.cpr.gen.glom.df.sid = subset(ps.b.cpr.gen.glom.df, 
+                                  Taxa=="Sideroxydans",
+                                  select=c("Taxa","Abundance"))
+names(ps.b.cpr.gen.glom.df.sid) = c("sid","sid_Abund")
+
+ps.b.cpr.gen.sid.uncomni <- cbind(ps.b.cpr.gen.glom.df.sid, ps.b.cpr.gen.gal.uncomni)
+ps.b.cpr.gen.sid.uncomni$sid_Abund = as.numeric(as.character(ps.b.cpr.gen.sid.uncomni$sid_Abund))
+ps.b.cpr.gen.sid.uncomni$UncOmni_Abund = as.numeric(as.character(ps.b.cpr.gen.sid.uncomni$UncOmni_Abund))
+
+sid_r2 = round(summary(lm(sid_Abund ~ UncOmni_Abund,ps.b.cpr.gen.sid.uncomni))$r.squared, 
+               digits = 3)
+sid_lm = lm(sid_Abund ~ UncOmni_Abund,ps.b.cpr.gen.sid.uncomni)
+# https://www.r-bloggers.com/can-we-do-better-than-r-squared/
+# anova to calculate residual sum of squares
+sid.anova <- anova(sid_lm)
+sid.tss <- sum(sid.anova$"Sum Sq")
+sid.pr <- residuals(sid_lm)/(1 - lm.influence(sid_lm)$hat)
+sid.PRESS <- sum(sid.pr^2)
+# predictive R^2
+sid.pred.r.squared <- 1 - sid.PRESS/(sid.tss)
+
+ps.b.cpr.gen.sid.uncomni_plot = ggplot(ps.b.cpr.gen.sid.uncomni,
+                                       aes(x=sid_Abund, y=UncOmni_Abund)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  stat_cor(label.y = 0.19, label.x = 0.1, 
+           size= 7) +
+  stat_poly_eq(
+    aes(label = ..eq.label..),
+    formula = formula, 
+    label.y = 0.21, label.x = 0.1,
+    parse = TRUE, size= 7) +
+  annotate("text", x = 0.1, y = 0.23, 
+           label = "paste(italic(R) ^ 2, \" = 0.961\")", 
+           parse = TRUE, size= 7) +
+  # annotate("text", x = 0.1, y = 0.22, 
+  #        label = "paste(Pred.,italic(R) ^ 2, \" = 0.957\")", parse = TRUE) +
+  scale_x_continuous(limits = c(0,0.42),
+                     expand = c(0,0)) +
+  scale_y_continuous(limits = c(0,0.25),
+                     expand = c(0,0))+
+  labs(x="Sideroxydans genus relative abundance (%)",
+       y="Unc. Omnitrophica taxa relative abundance (%)")
+```
+```{r echo=FALSE, fig.width=16, message=FALSE, warning=FALSE}
+plot_grid(ps.b.cpr.gen.gal.uncomni_plot, ps.b.cpr.gen.sid.uncomni_plot, 
+          ncol = 2, rel_widths = c(1,1))
 ```
 
 Uh lala! :D
+
+But I have doubts about this. This is basically the result of agglomeration via ```phyloseq::tax_glom``` of the SV table at genus level which may cause some inflation in this kind of stuff. This if everything is correct.
+
+So does it work the same way at SV-level?
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ps.b.gal = subset_taxa(ps.b.r, 
+                      Genus=="Gallionella")
+ps.b.sid = subset_taxa(ps.b.r, 
+                      Genus=="Sideroxydans")
+ps.b.omni = subset_taxa(ps.b.r, 
+                      Phylum=="Omnitrophica" | Class == "NA")
+
+table_ps.b.gal=as.data.frame(otu_table(ps.b.gal))
+melt_table_ps.b.gal <- melt(table_ps.b.gal, id.vars=1)
+f_melt_table_ps.b.gal = as.data.frame(melt_table_ps.b.gal[, c("value")])
+colnames(f_melt_table_ps.b.gal) = "Gallionella"
+
+table_ps.b.sid=as.data.frame(otu_table(ps.b.sid))
+melt_table_ps.b.sid <- melt(table_ps.b.sid, id.vars=1)
+f_melt_table_ps.b.sid = as.data.frame(melt_table_ps.b.sid[, c("value")])
+colnames(f_melt_table_ps.b.sid) = "Sideroxydans"
+
+table_ps.b.omni=as.data.frame(otu_table(ps.b.omni))
+melt_table_ps.b.omni <- melt(table_ps.b.omni, id.vars=1)
+f_melt_table_ps.b.omni = as.data.frame(melt_table_ps.b.omni[, c("value")])
+colnames(f_melt_table_ps.b.omni) = "Omnitrophica"
+
+#subsample the thing based on Sideroxydans
+
+ss_f_melt_table_ps.b.gal=as.data.frame(f_melt_table_ps.b.gal[sample(nrow(f_melt_table_ps.b.gal), 28665), ])
+colnames(ss_f_melt_table_ps.b.gal) = "Gallionella"
+ss_f_melt_table_ps.b.omni=as.data.frame(f_melt_table_ps.b.omni[sample(nrow(f_melt_table_ps.b.omni), 28665), ])
+colnames(ss_f_melt_table_ps.b.omni) = "Omnitrophica"
+
+ps.b.propercorrs = cbind(ss_f_melt_table_ps.b.gal,
+                         f_melt_table_ps.b.sid,
+                         ss_f_melt_table_ps.b.omni)
+
+ps.b.propercorrs.gal.uncomni_plot = ggplot(ps.b.propercorrs,
+                                       aes(x=Gallionella, y=Omnitrophica)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  scale_x_log10() +
+  scale_y_log10() +
+  labs(x="Gallionella genus relative abundance (%)",
+       y="Unc. Omnitrophica taxa relative abundance (%)")
+  
+ps.b.propercorrs.sid.uncomni_plot = ggplot(ps.b.propercorrs,
+                                       aes(x=Sideroxydans, y=Omnitrophica)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  scale_x_log10() +
+  scale_y_log10() +
+  labs(x="Sideroxydans genus relative abundance (%)",
+       y="Unc. Omnitrophica taxa relative abundance (%)")
+```
+```{r echo=FALSE, fig.width=16, message=FALSE, warning=FALSE}
+plot_grid(ps.b.propercorrs.gal.uncomni_plot, ps.b.propercorrs.sid.uncomni_plot, 
+          ncol = 2, rel_widths = c(1,1))
+```
+
+So guess what, it was nothing! Bah. SV-level plots show little or no correlation between relative abundances of these taxa.
