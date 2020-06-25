@@ -1,0 +1,214 @@
+---
+title: '#SGG Geochem'
+author: "André Soares"
+date: "30 January 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r set-options, echo=FALSE, cache=FALSE}
+options(width = 500)
+```
+
+```{r echo=FALSE, fig.height=8, fig.width=18, message=FALSE, warning=FALSE}
+# library(ggfortify)
+library(cowplot)
+library(ggplot2)
+
+nmds_ps.b.r_colors_by_name = c("Celynen North" = "#440a31",
+                               "Crumlin Navigation" = "#aa4455",
+                               "Six Bells" = "#ef7ac8",
+                               "Blaenavon" = "#08243f",
+                               "Cefn Hengoed" = "#4488aa",
+                               "Dinas" = "#8cc5ff",
+                               "Glyncastle" = "#0c4c2c",
+                               "Morlais" = "#03a353",
+                               "Mountain Gate" = "#89d6af",
+                               "Taff Bargoed" = "#774411",
+                               "Ynysarwed" = "#ff9430",
+                               "Lindsay" = "#DDAA77",
+                               "Taff's Well" = "#cec400")
+```
+
+First things first, 16S data indicates FeOB and SOB-rich microbial community profiles. Feel like I've seen this before somewhere!
+
+<!-- ![](C:/Users//Andre//Downloads//image.png) -->
+
+But does the hydrochem correlate with this? Not really. In fact, very preliminary Piper diagrams (we didn't measure HCO3-) don't really do much for separating the samples in putative Fe- and S-species-rich sites.
+
+Sara suggested the Na/Ca ratio and Boron still seemed to contribute towards separating samples that way, albeit not completely.
+
+<!-- ![](C:/Users//Andre//Downloads//download.png) -->
+
+Boron has been used as an indirect indicator of marine influence in groundwater, but not extensively. I decided to then use chloride as an indicator of the same thing. What I've though, after talking to Gareth, is that marine bands in the coalfield may not even hold Cl or other indicators of marine presence at this time and age. On the other side, Cl can actually be used as an indicator of groundwater age.
+
+Following Sara's Na/Ca ratio, which represents only the groundwater type for the samples, I then plotted that against the mM concentrations of Cl. Was also able to add temperature to the plot to make it more informative.
+
+```{r echo=FALSE, fig.height=7, fig.width=7,message=FALSE, warning=FALSE}
+library(ggforce)
+pca_table_mM=read.csv("SGG_hydro_and_geochemistry_v3_tidy_mM.csv", header=TRUE)
+
+pca_table_mM_noNA = pca_table_mM[ , colSums(is.na(pca_table_mM)) == 0]
+
+pca_table_mM_noNA$NaCa_ratio = (pca_table_mM_noNA$Na/(pca_table_mM_noNA$Na + pca_table_mM_noNA$Ca))
+
+ggplot(pca_table_mM_noNA, aes(Cl, NaCa_ratio, size=Temp.C,
+                      color=Site.name, shape=Month)) +
+  geom_point(alpha=0.8) +
+  geom_vline(xintercept = 0.75, linetype="dashed") +
+  geom_hline(yintercept = 0.5, linetype="dashed") +
+  scale_x_log10() +
+  scale_color_manual(values=nmds_ps.b.r_colors_by_name) +
+  guides(colour = guide_legend(override.aes = list(size=6)),
+         shape = guide_legend(override.aes = list(size=6))) +
+  labs(x=bquote(Cl^'-'),
+       y=expression(Na^'+'/Ca^'2+'~ratio),
+       size="Temperature (ºC)",
+       color="Site") +
+  theme_bw()
+
+ggsave("sgg_geochem_vert.png", dpi = "retina")
+```
+
+```{r echo=FALSE, fig.height=4, fig.width=8, message=FALSE, warning=FALSE}
+ggplot(pca_table_mM_noNA, aes(Cl, NaCa_ratio, 
+                              size=Temp.C,
+                              fill=Site.name,
+                              shape=Month)) +
+  geom_point(alpha=0.7, colour="black", stroke=.7) +
+  geom_vline(xintercept = 0.75, linetype="dashed") +
+  geom_hline(yintercept = 0.5, linetype="dashed") +
+  scale_x_log10() +
+  scale_fill_manual(values=nmds_ps.b.r_colors_by_name) +
+  scale_colour_manual(guide=F) +
+  scale_shape_manual(values = c(22,21,24)) +
+  guides(colour = guide_legend(show=F),
+         fill = guide_legend(override.aes = list(size=6,
+                                                 shape=21), 
+                               nrow = 4, title="Sites",
+                               title.position="top", title.hjust = 0.5),
+         shape = guide_legend(override.aes = list(size=6), nrow = 3,
+                               title.position="top", title.hjust = 0.5),
+         size = guide_legend(nrow=4,
+                               title.position="top", title.hjust = 0.5)) +
+  labs(x=bquote(Cl^'-'~(mM)),
+       y=expression(Na^'+'/(Na^'+'/Ca^'2+')~ratio),
+       size="Temperature (ºC)",
+       color="Site") +
+  theme_bw() +
+  theme(legend.position = "bottom")
+
+ggsave("sgg_geochem_hor.png", dpi = "retina")
+```
+
+So here we are: three major groups formed, plus Taff's Well being the outlier it's supposed to be.
+
+<!-- ![](C:/Users//Andre//Downloads//Publication1.jpg) -->
+
+More specifically, we can define:
+
+1. **Ca-type, low-temperature young groundwater sites**:
+
+|        Includes Ynysarwed, Glyncastle, Moutain Gate, Taff Bargoed, Cefn Hengoed, Blaenavon
+|        FeOB-rich sites
+|        16S data agrees with this
+
+
+
+2. **Na-type, higher-temperature medium age groundwater sites**:
+
+|        Includes Morlais, Dinas, Lindsay
+|        FeOB-rich sites
+|        16S data agrees in the sense that profiles for these sites are 'out of place' having in account the rest of the dataset. Profiles are different at phylum-level and genus-level shows other players present.
+
+
+
+3. **Deep groundwater sites**:
+
+|        Includes Crumlin Navigation, Six Bells and Crumlin Navigation
+|        SOB-rich sites
+|        Six Bells is pumped directly from a depth of 217 m below ground –thus it rises to the surface rapidly and with **limited mixing with other water**. Mine water sampled at Crumlin Navigation is thought to travel up the ‘Upcast shaft’ to the surface, this must happen fairly rapidly as **it maintains a high temperature (~19oC) when measured** (in the manhole cover), there could also be limited mixing with shallow water.
+|        Celynen may not 'cluster' with the two abovementioned adits because it is gravity-driven and thus may mix with shallower groundwater. Importantly, Celynen was in sealed with clays right below the Brithdir coal seam (UCM) in 1990, which is also certainly contributing for the same effect.
+
+
+
+4. **Taff's Well**:
+
+|        As expected, an outlier at the hydrochemical level.
+|        The position in the graph supports the water age argument
+|        December points indicate dilution of Na-rich waters due to 'contamination' with shallower groundwater or rain.
+
+
+
+Just to finish it off, Andy asked for a 3D plot! LOL.
+
+```{r eval=FALSE, fig.height=6, fig.width=10, message=FALSE, warning=FALSE, include=FALSE}
+set.seed(417)
+library(plotly)
+library(magrittr)
+
+shapes = c("April" = 27,
+           "August" = 29,
+           "December" = 31)
+shapes2 = c("square", "circle", "diamond")
+
+f <- list(
+  family = "Arial",
+  size = 18,
+  color = "#7f7f7f"
+)
+x <- list(
+  title = "Cl (mM)",
+  titlefont = f
+)
+y <- list(
+  title = "Na/Ca ratio",
+  titlefont = f
+)
+z <- list(
+  title = "Temperature (ºC)",
+  titlefont = f
+)
+
+# p = 
+plot_ly(x=pca_table_mM_noNA$Cl, y=pca_table_mM_noNA$NaCa_ratio, z=pca_table_mM_noNA$Temp.C,
+        type="scatter3d", mode="markers", 
+        color=pca_table_mM_noNA$Site.name,
+        # fillcolor=nmds_ps.b.r_colors_by_name,
+        colors = nmds_ps.b.r_colors_by_name,
+        span = pca_table_mM_noNA$Temp.C,
+        symbol = pca_table_mM_noNA$Month,
+        symbols = shapes2,
+        opacity = 0.6) %>% 
+layout(title = '#SGG Geochemistry across sites',
+       scene = list(xaxis=x,
+                      yaxis=y,
+                      zaxis=z))
+
+# api_create(p, filename = "SGG_3D_plot")
+```
+
+<!-- Does it make a difference to have the data in meqs? -->
+
+<!-- ```{r echo=FALSE, fig.height=8, fig.width=10, message=FALSE, warning=FALSE} -->
+<!-- library(ggforce) -->
+<!-- pca_table_meq=read.csv("E://PhD//SGG//SGG_hydrogeochem//SGG_hydro_and_geochemistry_v3_tidy_meq.csv", header=TRUE) -->
+
+<!-- # pca_table_meq_noNA = pca_table_meq[ , colSums(is.na(pca_table_meq)) == 0] -->
+
+<!-- pca_table_meq$NaCa_ratio = (pca_table_meq$Na/(pca_table_meq$Na + pca_table_meq$Ca)) -->
+
+<!-- ggplot(pca_table_meq, aes(Cl, NaCa_ratio, size=Temp.C, -->
+<!--                       color=Site.name, shape=Month)) + -->
+<!--   geom_point(alpha=0.8) + -->
+<!--   geom_vline(xintercept = 35, linetype="dashed") + -->
+<!--   geom_hline(yintercept = 0.5, linetype="dashed") + -->
+<!--   scale_x_log10() + -->
+<!--   scale_color_manual("Site Name",values=nmds_ps.b.r_colors_by_name) + -->
+<!--   scale_y_continuous("Na/Ca ratio") + -->
+<!--   guides(colour = guide_legend(override.aes = list(size=6)), -->
+<!--          shape = guide_legend(override.aes = list(size=6))) -->
+<!-- ``` -->
