@@ -1,0 +1,1225 @@
+---
+title: "SGG - All of things for the manuscript"
+author: "André Soares"
+date: "14 January 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r initial loadings, message=FALSE, warning=FALSE, include=FALSE}
+library(dada2); packageVersion("dada2")
+library(ggplot2); packageVersion("ggplot2")
+library(phyloseq); packageVersion("phyloseq")
+library(data.table); packageVersion("data.table")
+library(dplyr)
+library(plyr)
+library(magrittr)
+library(RColorBrewer)
+library(picante)
+library(igraph)
+library(cowplot)
+library(plotly)
+library(lemon)
+library(GGally)
+library(randomcoloR)
+library(knitr)
+library(kableExtra)
+library(ggpmisc)
+library(ggpubr)
+library(decontam)
+library(phyloseq)
+library(ggtextures)
+```
+
+```{r load SV data, echo=FALSE}
+SGG_SVt = readRDS("seqtab_final.rds")
+sgg_metadata<-read.csv("SGG_hydro_and_geochemistry_v3_tidy_mM_wctls.csv", header=TRUE)
+SGG_Tax = readRDS("tax_final_s132.rds")
+
+order<-rownames(SGG_SVt)
+sgg_metadata_ord<-sgg_metadata[match(order, sgg_metadata$Sample_Code),]
+rownames(sgg_metadata_ord) <- sgg_metadata_ord$Sample_Code
+ps <- phyloseq(otu_table(SGG_SVt, taxa_are_rows=FALSE),
+               sample_data(sgg_metadata_ord), 
+               tax_table(SGG_Tax))
+ps.a = subset_samples(ps, Site.name != "Taff's Well PUMPED")
+
+nmds_ps.b.r_shapes_by_name = c(15,
+                               16,
+                               17)
+```
+
+```{r echo=FALSE}
+sample_data(ps.a)$is.neg <- sample_data(ps.a)$Sample_type == "Control"
+contamdf.prev <- isContaminant(ps.a, method="prevalence", threshold = 0.5,
+                               neg="is.neg")
+table(contamdf.prev$contaminant)
+```
+
+- How prevalent are these contaminants throught the dataset?
+
+```{r echo=FALSE}
+ps.pa <- transform_sample_counts(ps, function(abund) 1*(abund>0))
+ps.pa.neg <- prune_samples(sample_data(ps.pa)$Sample_type == "Control", ps.pa)
+ps.pa.pos <- prune_samples(sample_data(ps.pa)$Sample_type == "Sample", ps.pa)
+```
+
+How many reads are associated to these contaminants?
+
+```{r echo=FALSE}
+ps.noncontam <- prune_taxa(contamdf.prev$contaminant, ps)
+sum(rowSums(otu_table(ps.noncontam)))
+```
+
+These SVs were removed for the ensuing analyses
+
+```{r echo=FALSE}
+ps.noncontam <- prune_taxa(!contamdf.prev$contaminant, ps.a)
+ps.b = subset_samples(ps.noncontam, Sample_type != "Control")
+ps.b = subset_samples(ps.b, Sample_type != "Taff's Well PUMPED")
+
+ps.b <- prune_taxa(taxa_sums(ps.b) > 0, ps.b)
+#order months
+sample_data(ps.b)$Month = factor(sample_data(ps.b)$Month, 
+                                 levels = c("April","August","December"))
+
+#to relative abundances
+ps.b = subset_taxa(ps.b, Kingdom %in% c("Archaea", "Bacteria"))
+ps.b = subset_samples(ps.b, Site.name != "Taff's Well PUMPED")
+  
+ps.b.r <-  transform_sample_counts(ps.b, function(x) {x/sum(x)})
+ps.b.r.f = filter_taxa(ps.b.r, function(x) sum(x) > .001, TRUE)
+```
+
+```{r main metadata, eval=FALSE, include=FALSE}
+sample_data(ps.b.r)$Site.name = factor(sample_data(ps.b.r)$Site.name, 
+                                          levels = c("Celynen North","Crumlin Navigation",
+                                                     "Six Bells","Blaenavon","Cefn Hengoed",
+                                                     "Dinas","Glyncastle","Morlais",
+                                                     "MountainGate","Taff Bargoed",
+                                                     "Ynysarwed","Lindsay","Taff's Well"))
+metadata<-sample_data(ps.b.r)
+#Temp
+temp_table.plot<-ggplot(metadata, 
+                        aes(x=Site.name, y=Temp.C, fill=Month)) +
+  geom_point(aes(fill=Month, color=Month),
+             size=1,
+             position = position_dodge(width=0.5)) +
+  geom_point(aes(fill=Month, color=Month),
+             size=4, alpha=0.3,
+             position = position_dodge(width=0.5)) +
+  geom_hline(yintercept = 13.4,
+             color="dark red",
+             linetype="dashed") +
+  scale_color_manual(values = c("chocolate1", "chartreuse3", "dodgerblue3")) +
+  theme(axis.title.x=element_blank(),
+        axis.title.y = element_text(size=14),
+        axis.text.x = element_blank(),
+        axis.text.y = element_text(size=12),
+        legend.position = "bottom",
+        legend.title = element_text(face = "bold"),
+        legend.background = element_rect(fill="gray95", size=.5, linetype="dotted"),
+        panel.background = element_rect(fill = "white", colour = NA),
+        panel.border     = element_rect(fill = NA, colour = "grey20"),
+        panel.grid = element_line(colour = "grey92"),
+        panel.grid.minor = element_line(size = rel(0.5)),
+        strip.background = element_rect(fill = "grey85", colour = "grey20")) +
+  labs(y=expression(paste("Temperature (ºC)",sep='')))
+#DO
+do.plot<-ggplot(metadata, 
+                        aes(x=Site.name, y=DO, fill=Month)) +
+  geom_point(aes(fill=Month, color=Month),
+             size=1,
+             position = position_dodge(width=0.5)) +
+  geom_point(aes(fill=Month, color=Month),
+             size=4, alpha=0.3,
+             position = position_dodge(width=0.5)) +
+  scale_color_manual(values = c("chocolate1", "chartreuse3", "dodgerblue3")) +
+  theme(axis.title.x=element_blank(),
+        axis.title.y = element_text(size=14),
+        axis.text.x = element_blank(),
+        axis.text.y = element_text(size=12),
+        legend.position = "none",
+        panel.background = element_rect(fill = "white", colour = NA),
+        panel.border     = element_rect(fill = NA, colour = "grey20"),
+        panel.grid = element_line(colour = "grey92"),
+        panel.grid.minor = element_line(size = rel(0.5)),
+        strip.background = element_rect(fill = "grey85", colour = "grey20")) +
+  labs(y="Dissolved Oxygen (%)")
+#Sulfate
+so4.plot<-ggplot(metadata, 
+                        aes(x=Site.name, y=SO4, fill=Month)) +
+  geom_point(aes(fill=Month, color=Month),
+             size=1,
+             position = position_dodge(width=0.5)) +
+  geom_point(aes(fill=Month, color=Month),
+             size=4, alpha=0.3,
+             position = position_dodge(width=0.5)) +
+  scale_color_manual(values = c("chocolate1", "chartreuse3", "dodgerblue3")) +
+  theme(axis.title.x=element_blank(),
+        axis.title.y = element_text(size=14),
+        axis.text.x = element_blank(),
+        axis.text.y = element_text(size=12),
+        legend.position = "none",
+        panel.background = element_rect(fill = "white", colour = NA),
+        panel.border     = element_rect(fill = NA, colour = "grey20"),
+        panel.grid = element_line(colour = "grey92"),
+        panel.grid.minor = element_line(size = rel(0.5)),
+        strip.background = element_rect(fill = "grey85", colour = "grey20")) +
+  labs(y=expression(paste("SO"[4]^{-2},"(",mu,"g mL"^{-1},")"))) +
+  guides(size=FALSE)
+#pH
+pH.plot<-ggplot(metadata, 
+                        aes(x=Site.name, y=pH, fill=Month)) +
+  geom_point(aes(fill=Month, color=Month),
+             size=1,
+             position = position_dodge(width=0.5)) +
+  geom_point(aes(fill=Month, color=Month),
+             size=4, alpha=0.3,
+             position = position_dodge(width=0.5)) +
+  scale_color_manual(values = c("chocolate1", "chartreuse3", "dodgerblue3")) +
+  theme(axis.title.x=element_blank(),
+        axis.title.y = element_text(size=14),
+        axis.text.x = element_blank(),
+        axis.text.y = element_text(size=12),
+        legend.position = "none",
+        panel.background = element_rect(fill = "white", colour = NA),
+        panel.border     = element_rect(fill = NA, colour = "grey20"),
+        panel.grid = element_line(colour = "grey92"),
+        panel.grid.minor = element_line(size = rel(0.5)),
+        strip.background = element_rect(fill = "grey85", colour = "grey20")) +
+  labs(y="pH") +
+  guides(size=FALSE)
+#EC
+ec.plot<-ggplot(metadata, 
+                        aes(x=Site.name, y=`EC.uS.cm`, fill=Month)) +
+  geom_point(aes(fill=Month, color=Month),
+             size=1,
+             position = position_dodge(width=0.5)) +
+  geom_point(aes(fill=Month, color=Month),
+             size=4, alpha=0.3,
+             position = position_dodge(width=0.5)) +
+  scale_color_manual(values = c("chocolate1", "chartreuse3", "dodgerblue3")) +
+  scale_y_continuous(breaks=c(0,500,1000,1500,2000,2500,3000)) +
+  theme(axis.title.x=element_blank(),
+        axis.title.y = element_text(size=14),
+        axis.text.x = element_text(angle = 25, hjust = 1, size= 13),
+        axis.text.y = element_text(size=12),
+        legend.position = "none",
+        legend.title = element_text(face = "bold"),
+        legend.background = element_rect(fill="gray95", size=.5, linetype="dotted"),
+        panel.background = element_rect(fill = "white", colour = NA),
+        panel.border     = element_rect(fill = NA, colour = "grey20"),
+        panel.grid = element_line(colour = "grey92"),
+        panel.grid.minor = element_line(size = rel(0.5)),
+        strip.background = element_rect(fill = "grey85", colour = "grey20")) +
+  labs(y=expression(paste("EC (",mu,"S cm"^{-1},")")))
+```
+```{r eval=FALSE, fig.height=11, fig.width=10, message=FALSE, warning=FALSE, include=FALSE}
+plot_grid(temp_table.plot, do.plot, so4.plot, pH.plot, ec.plot, 
+          ncol = 1, align='v', 
+          rel_heights = c(1.4,1.1,1,1,1.4))
+```
+
+###**Figure 2a:** High-level taxonomic view of the dataset:
+
+```{r general proteobacterial taxonomy, echo=FALSE, fig.height=14, fig.width=12}
+ps.b.r.glom <- speedyseq::tax_glom(ps.b.r, taxrank = 'Phylum', NArm = FALSE)
+# saveRDS(ps.b.r.glom, "/media/andre/B2F8C9A0F8C962E9/SGG_16S_analysis/SGG_16S_R/ps.b.r.glom.rds")
+# ps.b.r.glom = readRDS("/media/andre/B2F8C9A0F8C962E9/SGG_16S_analysis/SGG_16S_R/ps.b.r.glom.rds")
+ps.b.r.glom.psdf <- data.table(speedyseq::psmelt(ps.b.r.glom))
+ps.b.r.glom.psdf$Phylum <- as.character(ps.b.r.glom.psdf$Phylum)
+
+ps.b.r.glom.psdf[, median := median(Abundance, na.rm = TRUE), 
+                 by = "Phylum"]
+ps.b.r.glom.psdf[(median <= 0.01), Phylum := "Other (<1%)"]
+ps.b.r.glom.psdf[(median <= 0.01), Class := "Other"]
+ps.b.r.glom.psdf$Phylum[is.na(ps.b.r.glom.psdf$Phylum)] <- "Other (<1%)"
+# ps.b.r.glom.psdf$Class[is.na(ps.b.r.glom.psdf$Class)] <- "Other"
+ps.b.r.glom.psdf$Phylum[is.na(ps.b.r.glom.psdf$Phylum) & ps.b.r.glom.psdf$Kingdom=="Bacteria"] <- "Unc. Bacteria"
+ps.b.r.glom.psdf$Phylum[is.na(ps.b.r.glom.psdf$Phylum) & ps.b.r.glom.psdf$Kingdom=="Archaea"] <- "Unc. Archaea"
+#Removing Proteobacteria from previous table
+ps.b.r.glom.psdf.noProteo<-ps.b.r.glom.psdf[!grepl("Proteobacteria", ps.b.r.glom.psdf$Phylum),]
+#New table, with Proteobacterial classes only
+ps.b.r.ProtCl = subset_taxa(ps.b.r, Phylum == "Proteobacteria")
+ps.b.r.ProtClglom <- speedyseq::tax_glom(ps.b.r.ProtCl, taxrank = 'Class', NArm = FALSE)
+ps.b.r.ProtClglom.psdf <- data.table(speedyseq::psmelt(ps.b.r.ProtClglom))
+ps.b.r.ProtClglom.psdf$Class <- as.character(ps.b.r.ProtClglom.psdf$Class)
+
+ps.b.r.ProtClglom.psdf[, median := median(Abundance, na.rm = TRUE), 
+                        by = "Class"]
+ps.b.r.ProtClglom.psdf[(median <= 0.01), Class := "Other Proteobacteria"]
+ps.b.r.ProtClglom.psdf.noP <- subset(ps.b.r.ProtClglom.psdf, select = -Phylum)
+
+#Removing Gammaproteobacteria from previous table
+ps.b.r.ProtClglom.psdf.noP<-ps.b.r.ProtClglom.psdf.noP[!grepl("Gammaproteobacteria",
+                                                               ps.b.r.ProtClglom.psdf.noP$Class),]
+#New table, with Proteobacterial classes only
+ps.b.r.GProtCl = subset_taxa(ps.b.r, Class == "Gammaproteobacteria")
+ps.b.r.GProtClglom <- speedyseq::tax_glom(ps.b.r.GProtCl, taxrank = 'Order', NArm = FALSE)
+ps.b.r.GProtClglom.psdf <- data.table(speedyseq::psmelt(ps.b.r.GProtClglom))
+ps.b.r.GProtClglom.psdf$Order <- as.character(ps.b.r.GProtClglom.psdf$Order)
+
+ps.b.r.GProtClglom.psdf[, median := median(Abundance, na.rm = TRUE), 
+                        by = "Order"]
+ps.b.r.GProtClglom.psdf[(median <= 0.01), Order := "Other Gammaproteobacteria"]
+ps.b.r.GProtClglom.psdf.noP <- subset(ps.b.r.GProtClglom.psdf, select = -Phylum)
+ps.b.r.GProtClglom.psdf.noP <- subset(ps.b.r.GProtClglom.psdf.noP, select = -Class)
+
+names(ps.b.r.glom.psdf.noProteo)[names(ps.b.r.glom.psdf.noProteo) == 'Phylum'] <- 'Taxa'
+names(ps.b.r.ProtClglom.psdf.noP)[names(ps.b.r.ProtClglom.psdf.noP) == 'Class'] <- 'Taxa'
+names(ps.b.r.GProtClglom.psdf.noP)[names(ps.b.r.GProtClglom.psdf.noP) == 'Order'] <- 'Taxa'
+
+ps.b.r.ProteoClAllPhy <- rbind(ps.b.r.glom.psdf.noProteo, 
+                               ps.b.r.ProtClglom.psdf.noP,
+                               ps.b.r.GProtClglom.psdf.noP,
+                               fill=TRUE)
+ps.b.r.ProteoClAllPhy$Taxa[is.na(ps.b.r.ProteoClAllPhy$Taxa)] <- "Other (<1%)"
+ps.b.r.ProteoClAllPhy$Site.name = factor(ps.b.r.ProteoClAllPhy$Site.name, 
+                                    levels = c("Celynen North","Crumlin Navigation","Six Bells",
+                                               "Blaenavon","Cefn Hengoed","Dinas","Glyncastle",
+                                               "Morlais","Mountain Gate","Taff Bargoed",
+                                               "Ynysarwed","Lindsay","Taff's Well"))
+
+ps.b.r.ProteoClAllPhy$Taxa = factor(ps.b.r.ProteoClAllPhy$Taxa, 
+            levels = rev(c("Epsilonbacteraeota",
+                       "Deltaproteobacteria", 
+                       "Betaproteobacteriales",
+                       "Other Gammaproteobacteria",
+                       "Other Proteobacteria",
+                       "Actinobacteria",
+                       "Nitrospirae",
+                       "Bacteroidetes",
+                       "Omnitrophicaeota",
+                       "Patescibacteria",
+                       "Other (<1%)")))
+
+sum_ps.b.r.ProteoClAllPhy = ps.b.r.ProteoClAllPhy %>% 
+         filter(!is.na(Site.name)) %>%
+         select(c(Site.name, Month, Taxa, Abundance)) %>% 
+         group_by(Site.name, Month, Taxa) %>%
+         summarise(mean_ab = round(sum(Abundance)/3, 2))
+
+ggplot(sum_ps.b.r.ProteoClAllPhy,
+    aes(x = Site.name, y = Taxa, 
+        fill = mean_ab)) +
+  facet_grid(Month~.) +
+  geom_tile() +
+  geom_text(data = sum_ps.b.r.ProteoClAllPhy %>% 
+              filter(mean_ab <=.55),
+            aes(x = Site.name, y = Taxa,
+                label = mean_ab),
+                colour="black") +
+  geom_text(data = sum_ps.b.r.ProteoClAllPhy %>% 
+              filter(mean_ab >.55),
+            aes(x = Site.name, y = Taxa,
+                label = mean_ab),
+                colour="white") +
+  scale_fill_gradient("Averaged Relative Abundance (%)",
+                      high= "#000000",
+                      low = "#ffffff") +
+  theme_bw() +
+  theme(axis.title.x = element_blank(),
+        axis.text.x = element_text(size=16,
+                                   angle = 35, hjust = 1),
+        axis.title.y = element_blank(),
+        axis.text.y = element_text(size=17),
+        strip.text.x = element_text(face = "bold",
+                                    size = 18),
+        strip.text.y = element_text(face = "bold",
+                                    size = 18),
+        strip.background = element_rect(fill = "white"),
+        legend.text = element_text(size= 18,
+                                   angle = 25,
+                                   hjust = 1,
+                                   vjust = 1),
+        legend.title = element_text(size=18, face="bold"),
+        legend.position = "bottom"
+        ) +
+  guides(fill = guide_colourbar(title.position = "top",
+                                barwidth = 20))
+```
+
+###**?Figure 2b:** CAP with normalised metadata variables, groups highlighted.
+
+Which metadata variables explains the most microbial community structure in this dataset?
+adonis ~ PERMANOVA (http://cc.oulu.fi/~jarioksa/softhelp/vegan/html/adonis.html)
+(Working only with variables measured for all samples)
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ps.b.r.adonis = subset_samples(ps.b.r, !(Sample_Code %in% c(73,74,75)))
+ps_jsd <- phyloseq::distance(ps.b.r, method = "jsd")
+sampledf <- as(sample_data(ps.b.r), "data.frame")
+sampledf$DO[is.na(sampledf$DO)] <- 44.1
+sampledf$pH[is.na(sampledf$pH)] <- 7.29
+
+sampledf <- sampledf[ !(sampledf$Sample_Code %in% c(73,74,75)), ]
+
+# adonis(ps_jsd ~ Site.name + Pond_L + Month + Batch + Temp.C + pH + EC.uS.cm + Ca + DO + Mg + K + Na + Cl + NO3 + X6_Li + X7_Li + X7_Li_He + X9_Be + X11_B + X27_Al + X45_Sc + X47_Ti_ + X51_V_He + X52_Cr_He + X55_Mn +   X56_Fe_He +  X59_Co +   X60_Ni +   X63_Cu +   X68_Zn +   X65_Ga +   X75_As_He +  X78_Se +  X85_Rb +   X88_Sr +   X89_Y +    X90_Zr +  X93_Nb +   X97_Mo +   X98_Mo +   X111_Cd +  X114_Cd +  X115_In +  X123_Sb +  X125_Te +  X133_Cs +  X135_Ba +  X139_La +  X140_Ce +  X141_Pr + X146_Nd +  X147_Sm +  X153_Eu +  X157_Gd +  X159_Tb +  X163_Dy +  X165_Ho + X166_Er +  X169_Tm +  X172_Yb +  X175_Lu +  X181_Ta +  X182_W +  X200_Hg +  X201_Hg +  X202_Hg +  X205_Tl +  X206_Pb +  X207_Pb +  X209_Bi + X232_Th +  X238_U,
+#        data = sampledf,
+#        strata = sampledf$Time_point,
+#        permutations=1e3)
+
+adonis(ps_jsd ~ Pond_L + Month + Temp.C + pH + EC.uS.cm + Ca + DO + Mg + K + Na + Cl + NO3 + X11_B,
+       data = sampledf,
+       strata = sampledf$Time_point,
+       permutations=1e3)
+```
+
+i.e. 82.99% of the variation in the dataset is explained by site (p<0.001).
+
+Keeping all variables with p <0.01 for the CAP: ```Site.name```,```Month```,```Temp.C```,```Cl```,```SO4```,```X27_Al```,```X47_Ti_```,```X55_Mn```,```X74_Ge```,```X89_Y```, but also others that are known to explain the Beta/Epsilonproteobacteria ratio, ```Ca```, ```Na```, ```X11_B```.
+
+```{r eval=FALSE, fig.height=4, fig.width=8, message=FALSE, warning=FALSE, include=FALSE}
+library(PCAtools)
+
+pca_df = t(as.data.frame(otu_table(ps.b.r)))
+pca_metadata = as.data.frame(as.matrix(sample_data(ps.b.r)))
+
+pca_metadata$Pond_L = as.factor(pca_metadata$Pond_L)
+names(pca_metadata)[names(pca_metadata) == 'Pond'] <- 'Pond_no'
+names(pca_metadata)[names(pca_metadata) == 'Pond_L'] <- 'Pond'
+pca_metadata$Month = as.factor(pca_metadata$Month)
+pca_metadata$Temp.C = as.numeric(as.character(pca_metadata$Temp.C))
+names(pca_metadata)[names(pca_metadata) == 'Temp.C'] <- 'Temp.'
+pca_metadata$DO = as.numeric(as.character(pca_metadata$DO))
+pca_metadata$Cl = as.numeric(as.character(pca_metadata$Cl))
+pca_metadata$Na = as.numeric(as.character(pca_metadata$Na))
+pca_metadata$Ca = as.numeric(as.character(pca_metadata$Ca))
+pca_metadata$Mg = as.numeric(as.character(pca_metadata$Mg))
+
+p <- pca(pca_df, metadata = pca_metadata,
+         scale = TRUE,
+         removeVar = 0.5)
+
+eigencorplot(p,
+             metavars = c("Pond","Month","Temp.","DO","Cl","Na","Ca","Mg"),
+             col = c('#C8C8C8', '#989898', '#787878', '#505050', '#303030'),
+             cexCorval = 0.7,
+             colCorval = 'white',
+             rotLabX = 20,
+             # scale = TRUE,
+             corFUN = "pearson",
+             corUSE = "pairwise.complete.obs")
+```
+
+```{r eval=FALSE, include=FALSE}
+screeplot(p,components = getComponents(p, 1:10),
+          colBar = "#C8C8C8",
+          colCumulativeSumLine = '#303030', 
+          colCumulativeSumPoints = '#989898')
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+metadata<-as(sample_data(ps.b.r),"data.frame")
+metadata$DO[is.na(metadata$DO)] <- 44.1
+metadata<-metadata[!(metadata$Sample_Code=="73"),]
+metadata<-metadata[!(metadata$Sample_Code=="74"),]
+metadata<-metadata[!(metadata$Sample_Code=="75"),]
+
+metadata_noNA = metadata[ , colSums(is.na(metadata)) == 0]
+
+ps_sig <- phyloseq(otu_table(SGG_SVt, taxa_are_rows=FALSE),
+                   sample_data(metadata_noNA),
+                   tax_table(SGG_Tax))
+sample_data(ps_sig)$Month = factor(sample_data(ps_sig)$Month,
+                                   levels = c("April","August","December","Control"))
+ps_sig_ntf = subset_samples(ps_sig, Site.name != "Taff's Well PUMPED")
+ps_sig_ntf_nc = subset_samples(ps_sig_ntf, Sample_type != "Control")
+ps_sig_ntf_nc_noab = subset_taxa(ps_sig_ntf_nc, Kingdom %in% c("Archaea", "Bacteria"))
+ps_cap_r = transform_sample_counts(ps_sig_ntf_nc_noab, function(x) x/sum(x))
+
+set.seed(1)
+# Calculate Jensen-Shannon distance matrix
+ps_cap_r_jsd <- phyloseq::distance(ps_cap_r, method = "jsd")
+# make a data frame from the sample_data
+sampledf_cap <- data.frame(sample_data(ps_cap_r))
+
+sample_data(ps.b.r)$Site.name = factor(sample_data(ps.b.r)$Site.name,
+                                          levels = c("Celynen North","Crumlin Navigation",
+                                                     "Six Bells", "Blaenavon",
+                                                     "Cefn Hengoed","Dinas","Glyncastle",
+                                                     "Morlais","Mountain Gate",
+                                                     "Taff Bargoed","Ynysarwed",
+                                                     "Lindsay","Taff's Well"))
+norm_metadata<-sgg_metadata
+order_2<-rownames(otu_table(ps_cap_r))
+sgg_metadata_ord_norm<-norm_metadata[match(order_2, norm_metadata$Sample_Code),]
+rownames(sgg_metadata_ord_norm) <- sgg_metadata_ord_norm$Sample_Code
+
+sgg_metadata_ord_norm$DO[is.na(sgg_metadata_ord_norm$DO)] <- 44.1
+
+ps_cap_r_norm <- phyloseq(otu_table(ps_cap_r),
+                       tax_table(ps_cap_r),
+                       sample_data(sgg_metadata_ord_norm))
+#CAP with significant normalised variables
+CAP_ps_cap_r_norm <- ordinate(ps_cap_r_norm,
+                           method = "CAP",
+                           distance = "jsd",
+                           k=3, trymax=1e3, weighted=TRUE,
+                         formula = ~ Pond_L + Month + Temp.C + DO + Cl + Na + Ca + Mg + X47_Ti_)
+```
+
+```{r echo=FALSE}
+library(ggnewscale)
+library(ggrepel)
+
+bw_sites = c("#808080","#8a8a8a","#949494","#9d9d9d",
+                                 "#a7a7a7","#b1b1b1","#bbbbbb","#c5c5c5",
+                                 "#cecece","#d8d8d8","#e2e2e2","#ececec",
+                                 "#f6f6f6")
+
+sample_data(ps_cap_r_norm)$Month = as.character(sample_data(ps_cap_r_norm)$Month)
+
+arrowmat_CAP_norm <- vegan::scores(CAP_ps_cap_r_norm, display = "bp")
+arrowmat_CAP_norm<-subset(arrowmat_CAP_norm,
+                           rownames(arrowmat_CAP_norm) %in% c("Pond_Ltwelve","Pond_Leleven","Pond_Ltwo","Temp.C","Cl","DO","Na","Ca","Mg","X47_Ti_"))
+arrowdf_CAP_norm <- data.frame(labels = rownames(arrowmat_CAP_norm), arrowmat_CAP_norm)
+rownames(arrowdf_CAP_norm) <- c("Block 12","Block 11","Block 2","Temp","DO","Cl","Na","Ca","Mg","Ti")
+arrowdf_CAP_norm$labels <- c("Block 11","Block 12","Block 2","Temp","DO","Cl","Na","Ca","Mg","Ti")
+
+arrow_map_CAP_norm <- aes(xend = CAP1, yend = CAP2,
+                     x = 0, y = 0,
+                     shape = NULL, color = NULL,
+                     label = labels)
+label_map_CAP_norm <- aes(x = 1.1 * CAP1, y = 1.3 * CAP2,
+                     shape = NULL, color = NULL,
+                     label = labels)
+arrowhead_CAP_norm = arrow(length = unit(0.02, "npc"))
+
+CAP_norm_sig_plot_a12_df <- plot_ordination(ps_cap_r_norm,
+                                    ordination = CAP_ps_cap_r_norm, color = "Site.name",
+                                    axes = c(1,2), justDF = T)
+CAP_norm_sig_plot_a12 = ggplot() +
+  geom_point(data = CAP_norm_sig_plot_a12_df,
+             aes(CAP1, CAP2,
+                 shape = Month,
+                 colour = Site.name), 
+             alpha = 0.7, size = 3) +
+  scale_colour_manual(values = bw_sites, guide=F) +
+  scale_shape_manual("Month",
+                     values = nmds_ps.b.r_shapes_by_name,
+                     labels = c("April","August","December")) +
+  new_scale("shape") +
+  geom_point(data = CAP_norm_sig_plot_a12_df,
+             aes(CAP1, CAP2, 
+                 shape = Month), 
+             size = 3, colour = "black", 
+             alpha =.5, stroke = .2) +
+  scale_shape_manual("Month",
+                     values = c(0,1,2),
+                     labels = c("April","August","December")) +
+  geom_label_repel(data = CAP_norm_sig_plot_a12_df %>% 
+                    dplyr::filter(Month == "April", Time_point == 1,
+                                  Site.name %in% c("Morlais","Ynysarwed",
+                                                   "Glyncastle")),
+             aes(CAP1, CAP2,
+                 label = Site.name),
+             alpha = .3, force = 3, nudge_x = -.5) +
+  
+  geom_label_repel(data = CAP_norm_sig_plot_a12_df %>% 
+                    dplyr::filter(Month == "April", Time_point == 1,
+                                  Site.name %in% c("Taff's Well")),
+             aes(CAP1, CAP2,
+                 label = Site.name),
+             alpha = .3, force = 3, 
+             nudge_x = -.5, nudge_y = .3) +
+  
+  geom_label_repel(data = CAP_norm_sig_plot_a12_df %>% 
+                    dplyr::filter(Month == "April", Time_point == 1,
+                                  Site.name %in% c("Celynen North")),
+             aes(CAP1, CAP2,
+                 label = Site.name),
+             alpha = .3, force = 3, 
+             nudge_x = -.2, nudge_y = -.2) +
+  
+  geom_label_repel(data = CAP_norm_sig_plot_a12_df %>% 
+                    dplyr::filter(Month == "August", Time_point == 1,
+                                  Site.name %in% c("Dinas","Six Bells")),
+             aes(CAP1, CAP2,
+                 label = Site.name),
+             alpha = .3, force = 3, 
+             nudge_y = .5, nudge_x = .3) +
+  
+  geom_label_repel(data = CAP_norm_sig_plot_a12_df %>% 
+                    dplyr::filter(Month == "April", Time_point == 1,
+                                  Site.name %in% c("Crumlin Navigation")),
+             aes(CAP1, CAP2,
+                 label = Site.name),
+             alpha = .3, force = 3, nudge_y = -.3) +
+  
+  geom_label_repel(data = CAP_norm_sig_plot_a12_df %>% 
+                    dplyr::filter(Month == "April", Time_point == 1,
+                                Site.name %in% c("Taff Bargoed","Lindsay",
+                                                 "Blaenavon")),
+             aes(CAP1, CAP2,
+                 label = Site.name),
+             alpha = .3, 
+             force = 3, nudge_x = .4, nudge_y = -.2) +
+  
+  geom_label_repel(data = CAP_norm_sig_plot_a12_df %>% 
+                    dplyr::filter(Month == "April", Time_point == 1,
+                                Site.name %in% c("Cefn Hengoed", "Mountain Gate")),
+             aes(CAP1, CAP2,
+                 label = Site.name),
+             alpha = .3, 
+             force = 3, nudge_x = -.6) +
+  geom_segment(mapping = arrow_map_CAP_norm, size = .5,
+               data = arrowdf_CAP_norm, 
+               color = "black", 
+               arrow = arrowhead_CAP_norm) +
+  geom_text_repel(mapping = label_map_CAP_norm, 
+            size = 4, fontface="bold",
+            fill = "white", alpha=.7,
+            data = arrowdf_CAP_norm %>% 
+              filter(!labels %in% c("Block 11","Block 2")), 
+            show.legend = FALSE) +
+  scale_x_continuous(limits = c(-1.5,1.5)) +
+  
+  geom_text_repel(mapping = label_map_CAP_norm, 
+            size = 4, fontface="bold",
+            fill = "white", alpha=.7,
+            data = arrowdf_CAP_norm %>% 
+              filter(labels %in% c("Block 11","Block 2")),
+            nudge_y = .2,
+            show.legend = FALSE) +
+  scale_x_continuous(limits = c(-1.5,1.5)) +
+  xlab("CAP 1 [24.3%]") +
+  ylab("CAP 2 [12.1%]")
+
+arrowmat_CAP_norm_13 <- vegan::scores(CAP_ps_cap_r_norm, display = "bp", choices=c(1,3))
+arrowmat_CAP_norm_13<-subset(arrowmat_CAP_norm_13,
+                           rownames(arrowmat_CAP_norm_13) %in% c("Pond_Ltwelve","Pond_Leleven","Pond_Ltwo","Temp.C","Cl","DO","Na","Ca","Mg","X47_Ti_"))
+arrowdf_CAP_norm_13 <- data.frame(labels = rownames(arrowmat_CAP_norm_13), arrowmat_CAP_norm_13)
+rownames(arrowdf_CAP_norm_13) <- c("Block 12","Block 11","Block 2","Temp","DO","Cl","Na","Ca","Mg","Ti")
+arrowdf_CAP_norm_13$labels <-c("Block 11","Block 12","Block 2","Temp","DO","Cl","Na","Ca","Mg","Ti")
+
+arrow_map_CAP_norm_13 <- aes(xend = CAP1, yend = CAP3,
+                        x = 0, y = 0,
+                        shape = NULL, color = NULL,
+                        label = labels)
+label_map_CAP_norm_13 <- aes(x = 1.1 * CAP1, y = 1.3 * CAP3,
+                        shape = NULL, color = NULL,
+                        label = labels)
+arrowhead_CAP_norm_13 = arrow(length = unit(0.02, "npc"))
+
+CAP_norm_sig_plot_a13_df <- plot_ordination(ps_cap_r_norm,
+                                    ordination = CAP_ps_cap_r_norm, color = "Site.name",
+                                    axes = c(1,3), justDF = T)
+
+CAP_norm_sig_plot_a13 = ggplot() +
+  geom_point(data = CAP_norm_sig_plot_a13_df,
+             aes(CAP1, CAP3,
+                 shape = Month,
+                 colour = Site.name), 
+             alpha = 0.7, size = 3) +
+  scale_colour_manual(values = bw_sites, guide=F) +
+  scale_shape_manual("Month",
+                     values = nmds_ps.b.r_shapes_by_name,
+                     labels = c("April","August","December")) +
+  new_scale("shape") +
+  geom_point(data = CAP_norm_sig_plot_a13_df,
+             aes(CAP1, CAP3, 
+                 shape = Month), 
+             size = 3, colour = "black", 
+             alpha =.5, stroke = .2) +
+  scale_shape_manual("Month",
+                     values = c(0,1,2),
+                     labels = c("April","August","December")) +
+  geom_label_repel(data = CAP_norm_sig_plot_a13_df %>% 
+                    dplyr::filter(Month == "April", Time_point == 1,
+                                  Site.name %in% c("Ynysarwed",
+                                                   "Glyncastle",
+                                                   "Taff's Well")),
+             aes(CAP1, CAP3,
+                 label = Site.name),
+             alpha = .3, force = 3, nudge_x = -.5) +
+  
+  geom_label_repel(data = CAP_norm_sig_plot_a13_df %>% 
+                    dplyr::filter(Month == "April", Time_point == 1,
+                                  Site.name %in% c("Morlais")),
+             aes(CAP1, CAP3,
+                 label = Site.name),
+             alpha = .3, force = 3, 
+             nudge_x = -1) +
+  
+  geom_label_repel(data = CAP_norm_sig_plot_a13_df %>% 
+                    dplyr::filter(Month == "April", Time_point == 1,
+                                  Site.name %in% c("Celynen North")),
+             aes(CAP1, CAP3,
+                 label = Site.name),
+             alpha = .3, force = 3, 
+             nudge_x = .4, nudge_y = -.4) +
+  
+  geom_label_repel(data = CAP_norm_sig_plot_a13_df %>% 
+                    dplyr::filter(Month == "August", Time_point == 1,
+                                  Site.name %in% c("Six Bells")),
+             aes(CAP1, CAP3,
+                 label = Site.name),
+             alpha = .3, force = 3, 
+             nudge_y = .5, nudge_x = .3) +
+  
+  geom_label_repel(data = CAP_norm_sig_plot_a13_df %>% 
+                    dplyr::filter(Month == "August", Time_point == 1,
+                                  Site.name %in% c("Dinas")),
+             aes(CAP1, CAP3,
+                 label = Site.name),
+             alpha = .3, force = 3, 
+             nudge_y = -.1, nudge_x = -.3) +
+  
+  geom_label_repel(data = CAP_norm_sig_plot_a13_df %>% 
+                    dplyr::filter(Month == "April", Time_point == 1,
+                                  Site.name %in% c("Crumlin Navigation")),
+             aes(CAP1, CAP3,
+                 label = Site.name),
+             alpha = .3, force = 3, nudge_y = -.6) +
+  
+  geom_label_repel(data = CAP_norm_sig_plot_a13_df %>% 
+                    dplyr::filter(Month == "April", Time_point == 1,
+                                  Site.name %in% c("Blaenavon")),
+             aes(CAP1, CAP3,
+                 label = Site.name),
+             alpha = .3, force = 3, 
+             nudge_y = .4, nudge_x = .4) +
+  
+  geom_label_repel(data = CAP_norm_sig_plot_a13_df %>% 
+                    dplyr::filter(Month == "April", Time_point == 1,
+                                Site.name %in% c("Lindsay")),
+             aes(CAP1, CAP3,
+                 label = Site.name),
+             alpha = .3, 
+             force = 3, nudge_x = .2, nudge_y = -.3) +
+  
+  geom_label_repel(data = CAP_norm_sig_plot_a13_df %>% 
+                    dplyr::filter(Month == "April", Time_point == 1,
+                                Site.name %in% c("Cefn Hengoed", "Mountain Gate")),
+             aes(CAP1, CAP3,
+                 label = Site.name),
+             alpha = .3, 
+             force = 3, nudge_x = -.6) +
+  geom_label_repel(data = CAP_norm_sig_plot_a13_df %>% 
+                    dplyr::filter(Month == "April", Time_point == 1,
+                                Site.name %in% c("Taff Bargoed")),
+             aes(CAP1, CAP3,
+                 label = Site.name),
+             alpha = .3, 
+             force = 3, 
+             nudge_x = -.5, nudge_y = -.3) +
+  
+  geom_segment(mapping = arrow_map_CAP_norm_13, size = .5,
+               data = arrowdf_CAP_norm_13, 
+               color = "black", 
+               arrow = arrowhead_CAP_norm_13) +
+  
+  geom_text_repel(mapping = label_map_CAP_norm_13, 
+            size = 4, fontface="bold",
+            fill = "white", alpha=.7,
+            data = arrowdf_CAP_norm_13 %>% 
+              filter(!labels %in% c("Na","Block 11","Block 2", "Block 12")), 
+            show.legend = FALSE) +
+  
+    geom_text(mapping = label_map_CAP_norm_13, 
+            size = 4, fontface="bold",
+            fill = "white", alpha=.7,
+            data = arrowdf_CAP_norm_13 %>% 
+              filter(labels %in% c("Na")), 
+            show.legend = FALSE) +
+
+  geom_text_repel(mapping = label_map_CAP_norm_13, 
+            size = 4, fontface="bold",
+            fill = "white", alpha=.7,
+            data = arrowdf_CAP_norm_13 %>% 
+              filter(labels %in% c("Block 11","Block 2")),
+            nudge_y = 0, nudge_x = -.1,
+            show.legend = FALSE) +
+
+  geom_text_repel(mapping = label_map_CAP_norm_13, 
+            size = 4, fontface="bold",
+            fill = "white", alpha=.7,
+            data = arrowdf_CAP_norm_13 %>% 
+              filter(labels %in% c("Block 12")),
+            nudge_y = 0, nudge_x = .2,
+            show.legend = FALSE) +
+  scale_x_continuous(limits = c(-1.5,1.5)) +
+  xlab("CAP 1 [24.3%]") +
+  ylab("CAP 3 [10.7%]")
+
+ps.b.r.CAP_norm_sig.plot<-plot_grid(
+  CAP_norm_sig_plot_a12+
+    theme_bw() +
+    theme(legend.position = "none"), 
+  CAP_norm_sig_plot_a13+
+    theme_bw() +
+    theme(legend.position = "none"),
+                               labels=c("A","B"), ncol = 2)
+legend <- get_legend(CAP_norm_sig_plot_a13 + 
+                       guides(shape = guide_legend(nrow = 1,
+                                                   title.theme = element_text(face="bold")),
+                              fill = F) +
+                       theme(legend.position = "bottom"))
+ps.b.r.CAP_norm_sig.plot.legend = plot_grid(ps.b.r.CAP_norm_sig.plot,
+                                            legend,
+                                            ncol = 1, rel_heights = c(1, .3))
+```
+```{r echo=FALSE, fig.height=6, fig.width=10}
+ps.b.r.CAP_norm_sig.plot.legend
+```
+
+Do diversity, richness or dominance predict the seen groupings of samples?
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, fig.width=12, fig.height=8}
+p1 = plot_richness(ps.b,
+              x="Site.name",
+              measures="Observed", title = "Richness") +
+  geom_point(size=4, alpha=0.3) +
+  facet_wrap(~Month) +
+  scale_color_manual(values = "grey20", 
+                     guide = 'none') +
+  theme(axis.text.x = element_text(angle = 40,
+                                   vjust = 1,
+                                   hjust = 1,
+                                   size = 9),
+        axis.title = element_blank(),
+        panel.background = element_rect(fill = "white", colour = NA),
+        panel.border     = element_rect(fill = NA, colour = "grey20"),
+        panel.grid = element_line(colour = "grey92"),
+        panel.grid.minor = element_line(size = rel(0.5)),
+        strip.background = element_rect(fill = "grey85", colour = "grey20"))
+p2 = plot_richness(ps.b,
+              x="Site.name",
+              measures="Shannon", title="Shannon's Diversity") +
+  geom_point(size=4, alpha=0.3) +
+  facet_wrap(~Month) +
+  scale_color_manual(values = "grey20", 
+                     guide = 'none') +
+  theme(axis.text.x = element_text(angle = 40,
+                                   vjust = 1,
+                                   hjust = 1,
+                                   size = 9),
+        axis.title = element_blank(),
+        panel.background = element_rect(fill = "white", colour = NA),
+        panel.border     = element_rect(fill = NA, colour = "grey20"),
+        panel.grid = element_line(colour = "grey92"),
+        panel.grid.minor = element_line(size = rel(0.5)),
+        strip.background = element_rect(fill = "grey85", colour = "grey20"))
+p3 = plot_richness(ps.b,
+              x="Site.name",
+              measures="Simpson", title = "Simpson's Evenness") +
+  geom_point(size=4, alpha=0.3) +
+  facet_wrap(~Month) +
+  scale_color_manual(values = "grey20", 
+                     guide = 'none') +
+  theme(axis.text.x = element_text(angle = 40,
+                                   vjust = 1,
+                                   hjust = 1,
+                                   size = 9),
+        axis.title = element_blank(),
+        panel.background = element_rect(fill = "white", colour = NA),
+        panel.border     = element_rect(fill = NA, colour = "grey20"),
+        panel.grid = element_line(colour = "grey92"),
+        panel.grid.minor = element_line(size = rel(0.5)),
+        strip.background = element_rect(fill = "grey85", colour = "grey20"))
+plot_grid(p1,p2,p3,
+          nrow = 3,
+          rel_heights = c(1,1,1))
+```
+
+Not at the site level, but how about if we divide them into the groups of samples we've seen for the ```CAP```?
+
+```{r echo=FALSE, fig.height=10, fig.width=8, message=FALSE, warning=FALSE}
+my_comparisons <- list( c("FeOB-rich", "SOB-rich"))
+
+my_comparisons2 <- list( c("April", "August"), c("April","December"),
+                         c("August","December"))
+p4 = plot_richness(ps.b,
+              x="Site_type", color="Site_type",
+              measures="Observed", title = "Richness") +
+  geom_violin() +
+  geom_jitter(shape=16, position=position_jitter(0.2)) + 
+  stat_compare_means(comparisons = my_comparisons,
+                     method = "t.test",
+                     var.equal="welch",
+                     label.x.npc = "right", 
+                     label.y.npc = "top",
+                     symnum.args = list(cutpoints = c(0, 0.0001, 0.001, 0.01, 0.05,0.01, 1), 
+                       symbols = c("p<0.0001", "p<0.001", "p<0.01", "p<0.05","p<0.1", "ns"))) +
+  scale_y_continuous(limits = c(0,3700)) +
+  scale_color_manual(values=c("gray52","gray73")) +
+  facet_wrap(variable~Month, scales = "free") +
+  labs(color="Site type") +
+  theme(axis.text.x = element_text(angle = 20,
+                                   vjust = 1,
+                                   hjust = 1,
+                                   size = 12),
+        axis.title = element_blank(),
+        strip.text = element_text(size = 12, margin = margin()),
+        panel.background = element_rect(fill = "white", colour = NA),
+        panel.border     = element_rect(fill = NA, colour = "grey20"),
+        panel.grid = element_line(colour = "grey92"),
+        panel.grid.minor = element_line(size = rel(0.5)),
+        strip.background = element_rect(fill = "gray89", colour = "grey20"))
+p5 = plot_richness(ps.b,
+              x="Site_type", color="Site_type",
+              measures="Shannon", title="Shannon's Diversity") +
+  geom_violin() +
+  geom_jitter(shape=16, position=position_jitter(0.2)) + 
+  stat_compare_means(comparisons = my_comparisons,
+                     method = "t.test",
+                     var.equal="welch",
+                     label.x.npc = "right", 
+                     label.y.npc = "top",
+                     symnum.args = list(cutpoints = c(0, 0.0001, 0.001, 0.01, 0.05,0.01, 1), 
+                       symbols = c("p<0.0001", "p<0.001", "p<0.01", "p<0.05","p<0.1", "ns"))) +
+  scale_y_continuous(limits = c(0,8)) +
+  scale_color_manual(values=c("gray52","gray73")) +
+  facet_wrap(variable~Month, scales = "free") +
+  labs(color="Site type") +
+  theme(axis.text.x = element_text(angle = 20,
+                                   vjust = 1,
+                                   hjust = 1,
+                                   size = 12),
+        axis.title = element_blank(),
+        strip.text = element_text(size = 12, margin = margin()),
+        panel.background = element_rect(fill = "white", colour = NA),
+        panel.border     = element_rect(fill = NA, colour = "grey20"),
+        panel.grid = element_line(colour = "grey92"),
+        panel.grid.minor = element_line(size = rel(0.5)),
+        strip.background = element_rect(fill = "gray89", colour = "grey20"))
+p6 = plot_richness(ps.b,
+              x="Site_type", color="Site_type",
+              measures="Simpson", title = "Simpson's Evenness") +
+  geom_violin() +
+  geom_jitter(shape=16, position=position_jitter(0.2)) + 
+  # stat_compare_means(comparisons = my_comparisons)+
+  stat_compare_means(comparisons = my_comparisons,
+                     method = "t.test",
+                     var.equal="welch",
+                     label.x.npc = "right", 
+                     label.y.npc = "top",
+                     symnum.args = list(cutpoints = c(0, 0.0001, 0.001, 0.01, 0.05,0.01, 1), 
+                       symbols = c("p<0.0001", "p<0.001", "p<0.01", "p<0.05","p<0.1", "ns"))) +
+  scale_y_continuous(limits = c(0,1.1)) +
+  scale_color_manual(values=c("gray52","gray73")) +
+  facet_wrap(variable~Month, scales = "free") +
+  labs(color="Site type") +
+  theme(axis.text.x = element_text(angle = 20,
+                                   vjust = 1,
+                                   hjust = 1,
+                                   size = 12),
+        axis.title = element_blank(),
+        strip.text = element_text(size = 12, margin = margin()),
+        panel.background = element_rect(fill = "white", colour = NA),
+        panel.border     = element_rect(fill = NA, colour = "grey20"),
+        panel.grid = element_line(colour = "grey92"),
+        panel.grid.minor = element_line(size = rel(0.5)),
+        strip.background = element_rect(fill = "gray89", colour = "grey20"))
+plot_grid(p4,p5,p6,
+          nrow = 3,
+          rel_heights = c(1,1,1))
+```
+
+###**Figure 3:** Genus-level view of the dataset per month and site:
+
+```{r echo=FALSE, fig.height=14, fig.width=12}
+ps.b.r.top_genera.glom <- speedyseq::tax_glom(ps.b.r, taxrank = 'Genus', NArm = FALSE)
+ps.b.r.top_genera.glom.psdf <- data.table(speedyseq::psmelt(ps.b.r.top_genera.glom))
+ps.b.r.top_genera.glom.psdf$Genus <- as.character(ps.b.r.top_genera.glom.psdf$Genus)
+
+ps.b.r.top_genera.glom.psdf[, mean := mean(Abundance, na.rm = FALSE),
+                 by = "Genus"]
+
+ps.b.r.top_genera.glom.psdf[(mean <= 0.01), Genus := "Other (<1%)"]
+
+ps.b.r.top_genera.glom.psdf$Site.name = factor(ps.b.r.top_genera.glom.psdf$Site.name,
+                                          levels = c("Celynen North","Crumlin Navigation",
+                                                     "Six Bells","Blaenavon",
+                                                     "Cefn Hengoed","Dinas",
+                                                     "Glyncastle","Morlais",
+                                                     "Mountain Gate","Taff Bargoed",
+                                                     "Ynysarwed","Lindsay",
+                                                     "Taff's Well"))
+ps.b.r.top_genera.glom.psdf$Genus = factor(ps.b.r.top_genera.glom.psdf$Genus,
+                                        levels = rev(c("Gallionella","Sideroxydans",
+                                                   "Ferriphaselus","Sulfuricurvum",
+                                                   "Sulfurovum","Thiothrix",
+                                                   "Rhodoferax","Other (<1%)")))
+
+sum_ps.b.r.top_genera.glom.psdf = ps.b.r.top_genera.glom.psdf %>% 
+         filter(!is.na(Site.name)) %>% 
+         select(c(Site.name, Month, Genus, Abundance)) %>% 
+         group_by(Site.name, Month, Genus) %>% 
+         summarise(mean_ab = round(sum(Abundance)/3, 2))
+
+ggplot(sum_ps.b.r.top_genera.glom.psdf,
+    aes(x = Site.name, y = Genus, 
+        fill = mean_ab)) +
+  facet_grid(Month~.) +
+  geom_tile() +
+  geom_text(data = sum_ps.b.r.top_genera.glom.psdf %>% 
+              filter(mean_ab <=.55),
+            aes(x = Site.name, y = Genus,
+                label = mean_ab),
+                colour="black") +
+  geom_text(data = sum_ps.b.r.top_genera.glom.psdf %>% 
+              filter(mean_ab >.55),
+            aes(x = Site.name, y = Genus,
+                label = mean_ab),
+                colour="white") +
+  scale_fill_gradient("Averaged Relative Abundance (%)",
+                      high= "#000000",
+                      low = "#ffffff") +
+  theme_bw() +
+  theme(axis.title.x = element_blank(),
+        axis.text.x = element_text(size=16,
+                                   angle = 35, hjust = 1),
+        axis.title.y = element_blank(),
+        axis.text.y = element_text(size=17),
+        strip.text.x = element_text(face = "bold",
+                                    size = 18),
+        strip.text.y = element_text(face = "bold",
+                                    size = 18),
+        strip.background = element_rect(fill = "white"),
+        legend.text = element_text(size= 18,
+                                   angle = 25,
+                                   hjust = 1,
+                                   vjust = 1),
+        legend.title = element_text(size=18, face="bold"),
+        legend.position = "bottom"
+        ) +
+  guides(fill = guide_colourbar(title.position = "top",
+                                barwidth = 20))
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+#http://geekwentfreak.com/posts/stats/pearson_correlation_normality/
+metadata_cor_main_genera = ps.b.r.top_genera.glom.psdf[, c("Genus", "Abundance", "Site.name", "Month", "Time_point","SO4",
+                                                     "DO","Temp.C","pH",
+                                                     "X55_Mn","Mg","X68_Zn","Na","X6_Li",
+                                                     "X135_Ba","X11_B","X75_As_He","X59_Co",
+                                                     "X63_Cu","X78_Se","X200_Hg","X201_Hg","X202_Hg")]
+names(metadata_cor_main_genera) = c("Genus", "Abundance", "Site_name", "Month", 
+                                    "Time_point","SO4","DO","Temp","pH"
+                                    ,"Mn","Mg","Zn","Na","Li","Ba",
+                                    "B","As","Co","Cu","Se","200_Hg","201_Hg","202_Hg")
+
+cor_genera_geochem = as(metadata_cor_main_genera[, c("Genus", "Abundance", "Site_name", "Month",
+                                                     "Temp","SO4","DO","pH",
+                                                     "Mn","Mg","Zn","Na","Li","Ba",
+                                                     "B","As","Co","Cu","Se","200_Hg","201_Hg","202_Hg")], "data.frame")
+cor_genera_geochem_gal = subset(cor_genera_geochem, Genus=="Gallionella")
+cor_genera_geochem_sid = subset(cor_genera_geochem, Genus=="Sideroxydans")
+cor_genera_geochem_fer = subset(cor_genera_geochem, Genus=="Ferriphaselus")
+cor_genera_geochem_sulfuri = subset(cor_genera_geochem, Genus=="Sulfuricurvum")
+cor_genera_geochem_sulfuro = subset(cor_genera_geochem, Genus=="Sulfurovum")
+
+cor_genera_geochem_gal <- cor_genera_geochem_gal[, -which(names(cor_genera_geochem_gal) %in% c("Genus","Site_name","Month"))]
+cor_genera_geochem_gal_ggcorr<-ggcorr(cor_genera_geochem_gal, 
+                                           method = c("complete.obs", "pearson"),
+                                           label = TRUE, label_size = 3, 
+                                          label_round = 2, label_alpha = TRUE,
+                                           palette = "PRGn",
+                                           nbreaks = 10, hjust = 1, 
+                                           size=4, layout.exp = 2)
+
+cor_genera_geochem_sid <- cor_genera_geochem_sid[, -which(names(cor_genera_geochem_sid) %in% c("Genus","Site_name","Month"))]
+cor_genera_geochem_sid_ggcorr<-ggcorr(cor_genera_geochem_sid, 
+                                           method = c("complete.obs", "pearson"),
+                                           label = TRUE, label_size = 3, 
+                                          label_round = 2, label_alpha = TRUE,
+                                           palette = "PRGn",
+                                           nbreaks = 10, hjust = 1, 
+                                           size=4, layout.exp = 2)
+
+cor_genera_geochem_fer <- cor_genera_geochem_fer[, -which(names(cor_genera_geochem_fer) %in% c("Genus","Site_name","Month"))]
+cor_genera_geochem_fer_ggcorr<-ggcorr(cor_genera_geochem_fer, 
+                                           method = c("complete.obs", "pearson"),
+                                           label = TRUE, label_size = 3, 
+                                           label_round = 2, label_alpha = TRUE,
+                                           palette = "PRGn",
+                                           nbreaks = 10, hjust = 1, 
+                                           size=4, layout.exp = 2)
+
+cor_genera_geochem_sulfuri <- cor_genera_geochem_sulfuri[, -which(names(cor_genera_geochem_sulfuri) %in% c("Genus","Site_name","Month"))]
+cor_genera_geochem_sulfuri_ggcorr<-ggcorr(cor_genera_geochem_sulfuri, 
+                                           method = c("complete.obs", "pearson"),
+                                           label = TRUE, label_size = 3, 
+                                          label_round = 2, label_alpha = TRUE,
+                                           palette = "PRGn",
+                                           nbreaks = 10, hjust = 1, 
+                                           size=4, layout.exp = 2)
+
+cor_genera_geochem_sulfuro <- cor_genera_geochem_sulfuro[, -which(names(cor_genera_geochem_sulfuro) %in% c("Genus","Site_name","Month"))]
+cor_genera_geochem_sulfuro_ggcorr<-ggcorr(cor_genera_geochem_sulfuro, 
+                                           method = c("complete.obs", "pearson"),
+                                           label = TRUE, label_size = 3, 
+                                          label_round = 2, label_alpha = TRUE,
+                                           palette = "PRGn",
+                                           nbreaks = 10, hjust = 1, 
+                                           size=4, layout.exp = 2)
+
+#THIS IS SO LAZY
+
+pearson_gal = head(cor_genera_geochem_gal_ggcorr$data, n=18)
+pearson_gal$y = "Gallionella"
+pearson_gal$x = c("Temp","SO4","DO","pH",
+                  "Mn","Mg","Zn","Na","Li","Ba",
+                  "B","As","Co","Cu","Se","200_Hg","201_Hg","202_Hg")
+pearson_sid = head(cor_genera_geochem_sid_ggcorr$data, n=18)
+pearson_sid$y = "Sideroxydans"
+pearson_sid$x = c("Temp","SO4","DO","pH",
+                  "Mn","Mg","Zn","Na","Li","Ba",
+                  "B","As","Co","Cu","Se","200_Hg","201_Hg","202_Hg")
+pearson_fer = head(cor_genera_geochem_fer_ggcorr$data, n=18)
+pearson_fer$y = "Ferriphaselus"
+pearson_fer$x = c("Temp","SO4","DO","pH",
+                  "Mn","Mg","Zn","Na","Li","Ba",
+                  "B","As","Co","Cu","Se","200_Hg","201_Hg","202_Hg")
+pearson_sulfuri = head(cor_genera_geochem_sulfuri_ggcorr$data, n=18)
+pearson_sulfuri$y = "Sulfuricurvum"
+pearson_sulfuri$x = c("Temp","SO4","DO","pH",
+                  "Mn","Mg","Zn","Na","Li","Ba",
+                  "B","As","Co","Cu","Se","200_Hg","201_Hg","202_Hg")
+pearson_sulfuro = head(cor_genera_geochem_sulfuro_ggcorr$data, n=18)
+pearson_sulfuro$y = "Sulfurovum"
+pearson_sulfuro$x = c("Temp","SO4","DO","pH",
+                  "Mn","Mg","Zn","Na","Li","Ba",
+                  "B","As","Co","Cu","Se","200_Hg","201_Hg","202_Hg")
+
+#this is the correlation coefs table done. now for significance
+#help from https://stackoverflow.com/questions/12196756/significance-level-added-to-matrix-correlation-heatmap-using-ggplot2
+
+# Function to get the probability into a whole matrix not half, here is Spearman you can change it to Kendall or Pearson
+cor.prob.all <- function (X, dfr = nrow(X) - 2) {
+R <- cor(X, use="complete.obs",method="pearson")
+r2 <- R^2
+Fstat <- r2 * dfr/(1 - r2)
+R<- 1 - pf(Fstat, 1, dfr)
+R[row(R) == col(R)] <- NA
+R
+}
+
+cor_genera_geochem_gal_p=cor.prob.all(cor_genera_geochem_gal)
+cor_genera_geochem_sid_p=cor.prob.all(cor_genera_geochem_sid)
+cor_genera_geochem_fer_p=cor.prob.all(cor_genera_geochem_fer)
+cor_genera_geochem_sulfuri_p=cor.prob.all(cor_genera_geochem_sulfuri)
+cor_genera_geochem_sulfuro_p=cor.prob.all(cor_genera_geochem_sulfuro)
+
+cor_genera_geochem_gal_p <- data.frame(row=rownames(cor_genera_geochem_gal_p),cor_genera_geochem_gal_p) # create a column called "row" 
+rownames(cor_genera_geochem_gal_p) <- NULL
+cor_genera_geochem_gal_p.m <- head(melt(cor_genera_geochem_gal_p),n=19)[-1,]
+cor_genera_geochem_gal_p.m$value2<-cut(cor_genera_geochem_gal_p.m$value,
+                                       breaks=c(-Inf, 0.001, 0.01, 0.05),label=c("***", "** ", "*  ")) 
+cor_genera_geochem_gal_p.m[is.na(cor_genera_geochem_gal_p.m)] <- ""
+gal_pearson_pvalue<-cbind(pearson_gal,cor_genera_geochem_gal_p.m)
+cor_genera_geochem_gal <- gal_pearson_pvalue[, -which(names(gal_pearson_pvalue) %in% c("row","variable"))]
+names(cor_genera_geochem_gal)[6]<-paste("valuep")
+names(cor_genera_geochem_gal)[7]<-paste("signif.")
+
+cor_genera_geochem_sid_p <- data.frame(row=rownames(cor_genera_geochem_sid_p),cor_genera_geochem_sid_p) # create a column called "row" 
+rownames(cor_genera_geochem_sid_p) <- NULL
+cor_genera_geochem_sid_p.m <- head(melt(cor_genera_geochem_sid_p),n=19)[-1,]
+cor_genera_geochem_sid_p.m$value2<-cut(cor_genera_geochem_sid_p.m$value,
+                                       breaks=c(-Inf, 0.001, 0.01, 0.05),label=c("***", "** ", "*  ")) 
+cor_genera_geochem_sid_p.m[is.na(cor_genera_geochem_sid_p.m)] <- ""
+sid_pearson_pvalue<-cbind(pearson_sid,cor_genera_geochem_sid_p.m)
+cor_genera_geochem_sid <- sid_pearson_pvalue[, -which(names(sid_pearson_pvalue) %in% c("row","variable"))]
+names(cor_genera_geochem_sid)[6]<-paste("valuep")
+names(cor_genera_geochem_sid)[7]<-paste("signif.")
+
+cor_genera_geochem_fer_p <- data.frame(row=rownames(cor_genera_geochem_fer_p),cor_genera_geochem_fer_p) # create a column called "row" 
+rownames(cor_genera_geochem_fer_p) <- NULL
+cor_genera_geochem_fer_p.m <- head(melt(cor_genera_geochem_fer_p),n=19)[-1,]
+cor_genera_geochem_fer_p.m$value2<-cut(cor_genera_geochem_fer_p.m$value,
+                                       breaks=c(-Inf, 0.001, 0.01, 0.05),label=c("***", "** ", "*  ")) 
+cor_genera_geochem_fer_p.m[is.na(cor_genera_geochem_fer_p.m)] <- ""
+fer_pearson_pvalue<-cbind(pearson_fer,cor_genera_geochem_fer_p.m)
+cor_genera_geochem_fer <- fer_pearson_pvalue[, -which(names(fer_pearson_pvalue) %in% c("row","variable"))]
+names(cor_genera_geochem_fer)[6]<-paste("valuep")
+names(cor_genera_geochem_fer)[7]<-paste("signif.")
+
+cor_genera_geochem_sulfuri_p <- data.frame(row=rownames(cor_genera_geochem_sulfuri_p),cor_genera_geochem_sulfuri_p) # create a column called "row" 
+rownames(cor_genera_geochem_sulfuri_p) <- NULL
+cor_genera_geochem_sulfuri_p.m <- head(melt(cor_genera_geochem_sulfuri_p),n=19)[-1,]
+cor_genera_geochem_sulfuri_p.m$value2<-cut(cor_genera_geochem_sulfuri_p.m$value,
+                                       breaks=c(-Inf, 0.001, 0.01, 0.05),label=c("***", "** ", "*  ")) 
+cor_genera_geochem_sulfuri_p.m[is.na(cor_genera_geochem_sulfuri_p.m)] <- ""
+sulfuri_pearson_pvalue<-cbind(pearson_sulfuri,cor_genera_geochem_sulfuri_p.m)
+cor_genera_geochem_sulfuri <- sulfuri_pearson_pvalue[, -which(names(sulfuri_pearson_pvalue) %in% c("row","variable"))]
+names(cor_genera_geochem_sulfuri)[6]<-paste("valuep")
+names(cor_genera_geochem_sulfuri)[7]<-paste("signif.")
+
+cor_genera_geochem_sulfuro_p <- data.frame(row=rownames(cor_genera_geochem_sulfuro_p),cor_genera_geochem_sulfuro_p) # create a column called "row" 
+rownames(cor_genera_geochem_sulfuro_p) <- NULL
+cor_genera_geochem_sulfuro_p.m <- head(melt(cor_genera_geochem_sulfuro_p),n=19)[-1,]
+cor_genera_geochem_sulfuro_p.m$value2<-cut(cor_genera_geochem_sulfuro_p.m$value,
+                                       breaks=c(-Inf, 0.001, 0.01, 0.05),label=c("***", "** ", "*  ")) 
+cor_genera_geochem_sulfuro_p.m[is.na(cor_genera_geochem_sulfuro_p.m)] <- ""
+sulfuro_pearson_pvalue<-cbind(pearson_sulfuro,cor_genera_geochem_sulfuro_p.m)
+cor_genera_geochem_sulfuro <- sulfuro_pearson_pvalue[, -which(names(sulfuro_pearson_pvalue) %in% c("row","variable"))]
+names(cor_genera_geochem_sulfuro)[6]<-paste("valuep")
+names(cor_genera_geochem_sulfuro)[7]<-paste("signif.")
+
+#
+replot_pearson = rbind(cor_genera_geochem_gal,cor_genera_geochem_sid,cor_genera_geochem_fer,
+                       cor_genera_geochem_sulfuri,cor_genera_geochem_sulfuro)
+# replot_pearson$x<-pearson_gal$x
+
+
+low="#ffffff"
+mid="#888888"
+high="#000000"
+
+replot_pearson$x = factor(replot_pearson$x,levels = c("Temp","DO","pH","SO4","As","B","Ba","Co","Cu",
+                                                      "Li","Mg","Mn","Na","Se","Zn","200_Hg","201_Hg","202_Hg"))
+replot_pearson$y = factor(replot_pearson$y,levels = c("Sulfurovum","Sulfuricurvum",
+                                                      "Ferriphaselus","Sideroxydans","Gallionella"))
+
+replot_pearson_plot <- ggplot(replot_pearson,
+       aes(x, y)) +
+  geom_tile(aes(fill=breaks, width=0.8, height=0.8)) +
+  geom_tile(data=replot_pearson[!is.na(replot_pearson$signif.),],
+            aes(color=signif., width=0.9, height=0.9), fill="transparent", size=1) +
+  coord_equal() +
+  geom_text(data = replot_pearson %>% 
+              filter(label > 0),
+            aes(label = label,
+                alpha = abs(coefficient)), 
+            size = 4, color = "white") +
+  geom_text(data = replot_pearson %>% 
+              filter(label <= 0),
+            aes(label = label,
+                alpha = abs(coefficient)), 
+            size = 4, color = "black") +
+  scale_fill_manual(values = colorRampPalette(c(low, mid, high))(length(levels(replot_pearson$breaks))),
+                    drop = FALSE, 
+                    labels = c("-1, -0.8","-0.8, -0.6","-0.6, -0.4","-0.4, -0.2","-0.2, 0",
+                               "0, 0.2","0.2, 0.4","0.4, 0.6","0.6, 0.8","0.8, 1")) +
+  scale_color_manual(values=c("gray30","gray63","gray87"),
+                     labels=c("<0.001", "<0.01", "<0.05")) +
+  labs(title = "Pearson coefficients",
+       subtitle = "Using non-transformed relative abundances and metadata variables" ) +
+  theme(title = element_text(hjust = 0),
+        axis.title.x = element_blank(),
+        axis.text.x = element_text(size=11,
+                                   angle=30, hjust = 1),
+        axis.title.y = element_blank(),
+        axis.text.y = element_text(size=11,
+                                   face = "italic"),
+        panel.background = element_rect(fill = "white", colour = NA),
+        panel.border     = element_rect(fill = NA, colour = "grey20"),
+        panel.grid = element_line(colour = "grey92"),
+        panel.grid.minor = element_line(size = rel(0.5)),
+        strip.background = element_rect(fill = "grey85", colour = "grey20")) +
+  guides(alpha = FALSE,
+         fill = guide_legend(title = "r",
+                             reverse = TRUE,
+                             title.theme = element_text(face="italic",
+                                                        angle = 0)),
+         color= guide_legend(title="Significance",
+                             override.aes = list(fill="white")))
+```
+```{r echo=FALSE, fig.align="center", fig.width=12, fig.height=4}
+replot_pearson_plot
+```
