@@ -18,7 +18,7 @@ library(igraph)
 library(cowplot)
 
 # Filename parsing
-path <- "/media/andre/B2F8C9A0F8C962E9/SGG_16S_analysis/SGG_16S_data_trimmed"
+path <- "SGG_16S_data_trimmed"
 filtpath <- file.path(path, "filtered") # Filtered files go into the filtered/ subdirectory
 fns <- list.files(path, pattern="fastq.gz") # CHANGE if different file extensions
 
@@ -26,6 +26,7 @@ fns <- list.files(path, pattern="fastq.gz") # CHANGE if different file extension
 fnFs <- sort(list.files(path, pattern="_R1_001_trim.fastq", full.names = TRUE))
 fnRs <- sort(list.files(path, pattern="_R2_001_trim.fastq", full.names = TRUE))
 
+#take quality thresholds from visualizations
 plotQualityProfile(fnFs[1:2]) + 
   scale_x_continuous(breaks=c(0,50,100,150,200,250,300)) +
   scale_y_continuous(breaks=c(0,10,20,22,24,26,28,30,35,40)) +
@@ -74,24 +75,19 @@ rm(derepF); rm(derepR)
 seqtab <- makeSequenceTable(mergers)
 #lengths
 table(nchar(getSequences(seqtab)))
-saveRDS(seqtab, "/media/andre/B2F8C9A0F8C962E9/SGG_16S_analysis/SGG_16S_data_trimmed_DADA2_table/seqtab.rds")
+saveRDS(seqtab, "SGG_16S_data_trimmed_DADA2_table/seqtab.rds")
 # Remove chimeras
 seqtab_bimR <- removeBimeraDenovo(seqtab, method="consensus", multithread=TRUE)
-saveRDS(seqtab_bimR, "/media/andre/B2F8C9A0F8C962E9/SGG_16S_analysis/SGG_16S_data_trimmed_DADA2_table/seqtab_final.rds")
+saveRDS(seqtab_bimR, "SGG_16S_data_trimmed_DADA2_table/seqtab_final.rds")
 # Assign taxonomy, add species
-tax <- assignTaxonomy(seqtab_bimR, "/media/andre/B2F8C9A0F8C962E9/SGG_16S_analysis/SILVA_128/silva_nr_v128_train_set.fa.gz", multithread=TRUE)
-taxa <- addSpecies(tax, "/media/andre/B2F8C9A0F8C962E9/SGG_16S_analysis/SILVA_128/silva_species_assignment_v128.fa.gz")
+tax <- assignTaxonomy(seqtab_bimR, "SILVA_132/silva_nr_v132_train_set.fa.gz", multithread=TRUE)
+taxa <- addSpecies(tax, "SILVA_132/silva_species_assignment_v132.fa.gz")
 # Write to disk
-saveRDS(taxa, "/media/andre/B2F8C9A0F8C962E9/SGG_16S_analysis/SGG_16S_data_trimmed_DADA2_table/tax_final.rds")
-# #test
-# taxa.print <- taxa
-# rownames(taxa.print) <- NULL
-# #see if tax assignments worked
-# head(taxa.print)
-#
+saveRDS(taxa, "SGG_16S_data_trimmed_DADA2_table/tax_final.rds")
+
 #Check SV table size with phyloseq
 #taxa_are_rows bc of makeSequenceTable()
-sgg_metadata<-read.csv("/media/andre/B2F8C9A0F8C962E9/SGG_16S_analysis/SGG_16S_metadata/SGG_metadata.csv", header=TRUE)
+sgg_metadata<-read.csv("SGG_hydro_and_geochemistry_v3_tidy_mM_wctls.csv", header=TRUE)
 #reorder sgg_metadata based on seqtab_bimR
 order<-row.names(seqtab_bimR)
 sgg_metadata_ord<-sgg_metadata[match(order, sgg_metadata$Sample_Code),]
