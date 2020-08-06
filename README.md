@@ -7,7 +7,9 @@ Resulting data is under preparation for submission under the title "Hydrogeologi
 
  - **00_Data:**
 
-	Metadata; if cloned, can contain raw FASTQ generated for this study.
+	`SGG_hydro_and_geochemistry_v3_tidy_mM_wctls.csv` contains all metadata used in this study.
+
+	`README_16S_download.txt` contains links to download 16S rRNA gene FASTQ libraries.
 
  - **01_QC_Filtering:**
 
